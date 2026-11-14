@@ -85,7 +85,7 @@ struct WorkspaceConflictReview: View {
           .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
       }
     }.fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json,
-      defaultFilename: "WorkBench-保留内容-" + Clock.day()) { result in
+      defaultFilename: "随口记-保留内容-" + Clock.day()) { result in
       if case .failure(let error) = result { issue = error.localizedDescription }
     }
   }

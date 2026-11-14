@@ -87,7 +87,7 @@ struct WeChatAssistantView: View {
   }
 
   private var title: String {
-    if showsWelcome { return "在微信里发一句话，待办就出现在 WorkBench" }
+    if showsWelcome { return "在微信里发一句话，待办就出现在随口记" }
     if !assistant.connected && assistant.ready { return "扫码连接微信" }
     if assistant.ready && (!assistant.hasKey || editingKey) { return "配置 DeepSeek" }
     if showsTrial { return savedTask == nil ? "试着发一条待办" : "第一条待办已保存" }
@@ -202,7 +202,7 @@ struct WeChatAssistantView: View {
   }
 
   private var keepOpen: some View {
-    Text("接收微信消息时，请保持 WorkBench 打开。")
+    Text("接收微信消息时，请保持随口记打开。")
       .font(.callout).foregroundStyle(.secondary)
   }
 

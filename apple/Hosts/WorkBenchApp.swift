@@ -11,7 +11,7 @@ import WorkBenchKit
     @State private var focusStatusItem = FocusStatusItemController()
   #endif
   var body: some Scene {
-    WindowGroup("WorkBench", id: "workbench") {
+    WindowGroup("随口记", id: "workbench") {
       WorkBenchRoot(session: session)
         #if os(macOS)
           .frame(minWidth: 390, minHeight: 600)

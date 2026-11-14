@@ -1,6 +1,6 @@
-# WorkBench
+# 随口记
 
-这是 Apple 原生项目，主程序使用 SwiftUI、共享 Swift 业务包和系统 SQLite3；最低支持 macOS 26 / iOS 26。工程入口为 `apple/WorkBench.xcodeproj`。
+这是 Apple 原生项目，主程序使用 SwiftUI、共享 Swift 业务包和系统 SQLite3；最低支持 macOS 26 / iOS 26。工程入口为 `apple/Suikouji.xcodeproj`。
 
 - 原生修改遵循 `apple/AGENTS.md` 与 `apple/layout.md`。不再引入旧 Web、Tauri 或 Rust 主应用。
 - `tools/chrome/` 是唯一独立 JavaScript 工具，只负责 Mac Chrome 账号会话，不承担工作区业务。

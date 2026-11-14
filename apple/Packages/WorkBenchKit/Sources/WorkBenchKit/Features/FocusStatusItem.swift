@@ -46,7 +46,7 @@
         menu.addItem(end)
         menu.addItem(.separator())
         let open = NSMenuItem(
-          title: "打开 WorkBench", action: #selector(openWindow), keyEquivalent: "")
+          title: "打开随口记", action: #selector(openWindow), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
         item.menu = menu

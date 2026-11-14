@@ -168,7 +168,7 @@ public struct WorkBenchRoot: View {
   private var startup: some View {
     VStack(spacing: 20) {
       Image(systemName: "square.stack.3d.up").font(.largeTitle).foregroundStyle(.tint)
-      Text("WorkBench").font(.title.bold())
+      Text("随口记").font(.title.bold())
       if session.isLoading {
         ProgressView("正在校验本地数据…")
       } else if let error = session.error {

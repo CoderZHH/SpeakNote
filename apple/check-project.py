@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
 APPS = {
-    "WorkBenchMac": ("WorkBench Preview.app", "io.github.coderzhh.workbenchpreview", "WorkBench Preview"),
+    "WorkBenchMac": ("随口记.app", "io.github.coderzhh.workbenchpreview", "随口记"),
     "WorkBenchIOS": ("WorkBench.app", "io.github.coderzhh.workbenchpreview.ios", "WorkBench"),
     "PhotoAssistant": ("PhotoAssistant.app", "io.github.coderzhh.workbenchpreview.photo", "拍照助手"),
 }
@@ -23,7 +23,7 @@ def require(condition, message):
 def project_objects():
     raw = subprocess.check_output([
         "plutil", "-convert", "json", "-o", "-",
-        str(ROOT / "WorkBench.xcodeproj/project.pbxproj"),
+        str(ROOT / "Suikouji.xcodeproj/project.pbxproj"),
     ])
     return json.loads(raw)["objects"]
 
@@ -63,7 +63,7 @@ def validate_project():
         for key in objects[project["buildConfigurationList"]]["buildConfigurations"]
     }
     schemes = {path.stem: ET.parse(path).getroot() for path in
-               (ROOT / "WorkBench.xcodeproj/xcshareddata/xcschemes").glob("*.xcscheme")}
+               (ROOT / "Suikouji.xcodeproj/xcshareddata/xcschemes").glob("*.xcscheme")}
     validate_schemes(schemes, targets)
     for name, (product, bundle, display) in APPS.items():
         target = targets[name][1]

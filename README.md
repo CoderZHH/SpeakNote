@@ -1,10 +1,10 @@
-# WorkBench Preview
+# 随口记
 
 原生 Mac 工作台。把任务和随手记放进「今日」，用项目组织进度，在日历安排时间并开启专注。学习与课程也可以单独使用。界面以简体中文为主。
 
 这个仓库目前用于首版开发，尚未提供正式安装包。预览版需要 macOS 26 和 Xcode 26。
 
-1. 打开 `apple/WorkBench.xcodeproj`，选择 `WorkBenchMac` 和本机 Mac。
+1. 打开 `apple/Suikouji.xcodeproj`，选择 `WorkBenchMac` 和本机 Mac。
 2. 点击 Run。首次启动会创建空工作区，默认数据目录为 `~/Library/Application Support/WorkBench Preview/`。
 3. 如需试用示例内容，在「设置 → 导入备份」选择 [示例工作区](docs/examples/workbench-demo-data.json)。也可在课程页单独载入示例课表。
 

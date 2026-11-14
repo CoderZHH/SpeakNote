@@ -15,10 +15,10 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "45366B532D8643A0B17B34E1"
+               BlueprintIdentifier = "71BBFA0BB025F833F0780496"
                BuildableName = "PhotoAssistant.app"
                BlueprintName = "PhotoAssistant"
-               ReferencedContainer = "container:WorkBench.xcodeproj">
+               ReferencedContainer = "container:Suikouji.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -29,10 +29,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "64103DCA253E269A0144085C"
+               BlueprintIdentifier = "3DD9FFAE7442AE7AEDA018F8"
                BuildableName = "WorkBench.app"
                BlueprintName = "WorkBenchIOS"
-               ReferencedContainer = "container:WorkBench.xcodeproj">
+               ReferencedContainer = "container:Suikouji.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -43,10 +43,10 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BDC58BF145FC1CCE8F840C5B"
+               BlueprintIdentifier = "530B00F7FE60281C52ADD878"
                BuildableName = "WorkBenchUITests.xctest"
                BlueprintName = "WorkBenchUITests"
-               ReferencedContainer = "container:WorkBench.xcodeproj">
+               ReferencedContainer = "container:Suikouji.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -60,10 +60,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "64103DCA253E269A0144085C"
+            BlueprintIdentifier = "3DD9FFAE7442AE7AEDA018F8"
             BuildableName = "WorkBench.app"
             BlueprintName = "WorkBenchIOS"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -72,10 +72,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BDC58BF145FC1CCE8F840C5B"
+               BlueprintIdentifier = "530B00F7FE60281C52ADD878"
                BuildableName = "WorkBenchUITests.xctest"
                BlueprintName = "WorkBenchUITests"
-               ReferencedContainer = "container:WorkBench.xcodeproj">
+               ReferencedContainer = "container:Suikouji.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -96,10 +96,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "64103DCA253E269A0144085C"
+            BlueprintIdentifier = "3DD9FFAE7442AE7AEDA018F8"
             BuildableName = "WorkBench.app"
             BlueprintName = "WorkBenchIOS"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -115,10 +115,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "64103DCA253E269A0144085C"
+            BlueprintIdentifier = "3DD9FFAE7442AE7AEDA018F8"
             BuildableName = "WorkBench.app"
             BlueprintName = "WorkBenchIOS"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

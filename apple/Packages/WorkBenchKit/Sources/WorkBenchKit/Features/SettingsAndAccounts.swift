@@ -116,7 +116,7 @@ struct SettingsView: View {
     }.workspaceSettingsForm().accessibilityIdentifier("settings.form")
       .fileExporter(
         isPresented: $exporting, document: document, contentType: .json,
-        defaultFilename: "WorkBench-" + Clock.day()
+        defaultFilename: "随口记-" + Clock.day()
       ) { result in
         if case .failure(let error) = result { session.error = error.localizedDescription }
       }

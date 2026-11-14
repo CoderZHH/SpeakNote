@@ -1,4 +1,4 @@
-name: WorkBench
+name: Suikouji
 options:
   minimumXcodeGenVersion: 2.44.0
   xcodeVersion: '26.0'
@@ -40,20 +40,20 @@ targetTemplates:
         NSPhotoLibraryUsageDescription: 选择截图或备注附件
 targets:
   WorkBenchMac:
-    productName: WorkBench Preview
+    productName: 随口记
     templates: [Host]
     platform: macOS
     info:
       path: Configuration/WorkBenchMac-Info.plist
       properties:
-        CFBundleDisplayName: WorkBench Preview
+        CFBundleDisplayName: 随口记
         LSApplicationCategoryType: public.app-category.productivity
     sources:
       - path: Resources/Mac.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.coderzhh.workbenchpreview
-        PRODUCT_NAME: WorkBench Preview
+        PRODUCT_NAME: 随口记
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
   WorkBenchIOS:
     productName: WorkBench

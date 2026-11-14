@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "45366B532D8643A0B17B34E1"
+               BlueprintIdentifier = "71BBFA0BB025F833F0780496"
                BuildableName = "PhotoAssistant.app"
                BlueprintName = "PhotoAssistant"
-               ReferencedContainer = "container:WorkBench.xcodeproj">
+               ReferencedContainer = "container:Suikouji.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "45366B532D8643A0B17B34E1"
+            BlueprintIdentifier = "71BBFA0BB025F833F0780496"
             BuildableName = "PhotoAssistant.app"
             BlueprintName = "PhotoAssistant"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -55,10 +55,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "45366B532D8643A0B17B34E1"
+            BlueprintIdentifier = "71BBFA0BB025F833F0780496"
             BuildableName = "PhotoAssistant.app"
             BlueprintName = "PhotoAssistant"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -74,10 +74,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "45366B532D8643A0B17B34E1"
+            BlueprintIdentifier = "71BBFA0BB025F833F0780496"
             BuildableName = "PhotoAssistant.app"
             BlueprintName = "PhotoAssistant"
-            ReferencedContainer = "container:WorkBench.xcodeproj">
+            ReferencedContainer = "container:Suikouji.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
