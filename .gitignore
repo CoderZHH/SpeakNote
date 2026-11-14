@@ -1,0 +1,24 @@
+# Personal workspace data, media, browser sessions and backups
+data/
+.env*
+.DS_Store
+
+# Native build output and local Xcode state
+apple/Build/
+**/.build/
+**/.swiftpm/
+**/DerivedData/
+**/xcuserdata/
+*.xcuserstate
+test-results/
+__pycache__/
+*.pyc
+
+# Chrome helper runtime is prepared locally, not checked into Git
+node_modules/
+apple/Resources/ChromeRuntime/*
+!apple/Resources/ChromeRuntime/.gitkeep
+
+# Existing local signing material is preserved outside source control
+apple/Configuration/Signing/*
+!apple/Configuration/Signing/README.md

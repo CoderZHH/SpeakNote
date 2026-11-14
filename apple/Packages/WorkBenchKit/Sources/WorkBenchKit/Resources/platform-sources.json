@@ -1,0 +1,58 @@
+[
+  {
+    "platform": "douyin",
+    "official_page": "https://www.douyin.com/",
+    "source": "https://lf-douyin-pc-web.douyinstatic.com/obj/douyin-pc-web/2025_0313_logo.png",
+    "file": "douyin.png",
+    "downloaded_on": "2026-10-03",
+    "note": "Original official website icon, downloaded without redrawing."
+  },
+  {
+    "platform": "bilibili",
+    "official_page": "https://www.bilibili.com/",
+    "source": "https://i0.hdslb.com/bfs/static/jinkela/long/images/favicon.ico",
+    "file": "bilibili.ico",
+    "downloaded_on": "2026-10-03",
+    "note": "Original official website icon, downloaded without redrawing."
+  },
+  {
+    "platform": "xiaohongshu",
+    "official_page": "https://www.xiaohongshu.com/",
+    "source": "https://picasso-static.xiaohongshu.com/fe-platform/f43dc4a8baf03678996c62d8db6ebc01a82256ff.png",
+    "file": "xiaohongshu.png",
+    "downloaded_on": "2026-10-03",
+    "note": "Original official website icon, downloaded without redrawing."
+  },
+  {
+    "platform": "x",
+    "official_page": "https://x.com/",
+    "source": "https://x.com/",
+    "file": "x.svg",
+    "downloaded_on": "2026-10-03",
+    "note": "Original SVG from a[aria-label=\"X\"] in the site navigation. Added XML namespace for standalone file use; original paths retained."
+  },
+  {
+    "platform": "tiktok",
+    "official_page": "https://developers.tiktok.com/doc/getting-started-design-guidelines/",
+    "source": "https://sf16-va.tiktokcdn.com/obj/eden-va2/uvzhqeh7nuhd/tt4d/logo-pack.zip",
+    "file": "tiktok.png",
+    "downloaded_on": "2026-10-21",
+    "note": "Original TikTok_Icon_Black_Square.png from the official developer logo pack. No upscaling or redrawing."
+  },
+  {
+    "platform": "instagram",
+    "official_page": "https://www.instagram.com/",
+    "source": "https://static.cdninstagram.com/rsrc.php/yw/r/icwX0xAk0pz.webp",
+    "file": "instagram.png",
+    "downloaded_on": "2026-10-21",
+    "note": "Official 180px Apple touch icon from instagram.com; lossless PNG conversion, no upscaling."
+  },
+  {
+    "platform": "youtube",
+    "official_page": "https://www.youtube.com/",
+    "source": "https://www.youtube.com/s/desktop/4cb73bce/img/favicon_144x144.png",
+    "file": "youtube.png",
+    "downloaded_on": "2026-10-21",
+    "note": "Original official 144px icon; no upscaling or redrawing."
+  }
+]

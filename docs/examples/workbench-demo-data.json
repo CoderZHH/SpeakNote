@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "exportedAt": "2026-11-10T13:05:00.000Z",
+  "state": {
+    "today": "2026-11-10",
+    "timezone": "Asia/Shanghai",
+    "semesters": [
+      {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "title": "2026 秋季学期（模拟）",
+        "first_monday": "2026-08-31",
+        "weeks": 18,
+        "periods": [
+          {
+            "number": 1,
+            "start": "08:30",
+            "end": "09:15"
+          },
+          {
+            "number": 2,
+            "start": "09:25",
+            "end": "10:10"
+          }
+        ],
+        "created_at": "2026-11-10T13:00:00.000Z"
+      }
+    ],
+    "courses": [
+      {
+        "id": "10000000-0000-4000-8000-000000000002",
+        "semester_id": "10000000-0000-4000-8000-000000000001",
+        "title": "软件工程（模拟）",
+        "teacher": "示例老师",
+        "code": "DEMO-SE",
+        "description": "用于演示课程与任务关联",
+        "color": "#648ba8",
+        "status": "active",
+        "completed_at": null,
+        "created_at": "2026-11-10T13:00:00.000Z"
+      }
+    ],
+    "courseMeetings": [
+      {
+        "id": "10000000-0000-4000-8000-000000000003",
+        "course_id": "10000000-0000-4000-8000-000000000002",
+        "weekday": 2,
+        "weeks": [
+          11,
+          12,
+          13
+        ],
+        "period_start": 1,
+        "period_end": 2,
+        "room": "示例楼 A101",
+        "created_at": "2026-11-10T13:00:00.000Z"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "10000000-0000-4000-8000-000000000004",
+        "title": "交实验报告",
+        "notes": "附上测试结果和简短的复盘",
+        "status": "todo",
+        "planned_date": "2026-11-10",
+        "due_date": "2026-11-15",
+        "start_time": null,
+        "end_time": null,
+        "reminder_enabled": 0,
+        "importance": 2,
+        "priority": "normal",
+        "important": 0,
+        "estimate": 25,
+        "project_id": null,
+        "learning_id": null,
+        "course_id": "10000000-0000-4000-8000-000000000002",
+        "source_note_id": null,
+        "resume_hint": "",
+        "created_at": "2026-11-10T13:01:00.000Z",
+        "updated_at": "2026-11-10T13:01:00.000Z",
+        "completed_at": null,
+        "abandoned_at": null,
+        "reminder_at": null
+      }
+    ],
+    "notes": [
+      {
+        "id": "10000000-0000-4000-8000-000000000005",
+        "content": "实验数据待复核",
+        "remark": "先对照模拟数据的第二组记录",
+        "color": "yellow",
+        "status": "inbox",
+        "project_id": null,
+        "learning_id": null,
+        "course_id": "10000000-0000-4000-8000-000000000002",
+        "created_at": "2026-11-10T13:02:00.000Z"
+      }
+    ],
+    "projects": [
+      {
+        "id": "10000000-0000-4000-8000-000000000006",
+        "title": "课程展示页（模拟）",
+        "description": "整理报告并准备演示",
+        "color": "yellow",
+        "status": "active",
+        "repo_path": null,
+        "completed_at": null,
+        "created_at": "2026-11-10T13:03:00.000Z"
+      }
+    ],
+    "learning": [
+      {
+        "id": "10000000-0000-4000-8000-000000000007",
+        "title": "学习软件测试（模拟）",
+        "description": "练习边界值与回归",
+        "color": "mint",
+        "status": "active",
+        "parent_id": null,
+        "position": 0,
+        "completed_at": null,
+        "created_at": "2026-11-10T13:03:00.000Z"
+      }
+    ],
+    "lessons": [
+      {
+        "id": "10000000-0000-4000-8000-000000000008",
+        "learning_id": "10000000-0000-4000-8000-000000000007",
+        "title": "编写三条边界值用例",
+        "done": 0,
+        "position": 0,
+        "task_id": null,
+        "parent_id": null
+      }
+    ],
+    "reflections": [
+      {
+        "id": "10000000-0000-4000-8000-000000000009",
+        "day": "2026-11-10",
+        "content": "实验小结\n先记录预期，再复核实际结果。",
+        "tags": [
+          "反思",
+          "实验"
+        ],
+        "created_at": "2026-11-10T13:04:00.000Z",
+        "updated_at": "2026-11-10T13:04:00.000Z"
+      }
+    ],
+    "focus": [],
+    "focusIntervals": [],
+    "accounts": [],
+    "metrics": [],
+    "attachments": []
+  }
+}

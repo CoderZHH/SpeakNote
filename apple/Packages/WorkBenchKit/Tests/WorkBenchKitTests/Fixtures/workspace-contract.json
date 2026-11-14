@@ -1,0 +1,79 @@
+{
+  "tasks": [
+    {
+      "abandoned_at": null,
+      "completed_at": "2026-10-25T00:20:00.000Z",
+      "course_id": null,
+      "created_at": "2026-10-25T00:00:00.000Z",
+      "due_date": null,
+      "end_time": null,
+      "estimate": 25,
+      "id": "task",
+      "importance": 5,
+      "important": 0,
+      "learning_id": null,
+      "notes": "迁移标题\n完整内容\n\n原备注",
+      "planned_date": "2026-10-25",
+      "priority": "normal",
+      "project_id": "project",
+      "resume_hint": "",
+      "source_note_id": "note",
+      "start_time": null,
+      "status": "done",
+      "title": "迁移标题",
+      "updated_at": "2026-10-25T00:20:00.000Z"
+    }
+  ],
+  "notes": [
+    {
+      "color": "yellow",
+      "content": "迁移标题\n完整内容",
+      "course_id": null,
+      "created_at": "2026-10-25T00:00:00.000Z",
+      "id": "note",
+      "learning_id": null,
+      "project_id": "project",
+      "remark": "原备注",
+      "status": "processed"
+    }
+  ],
+  "projects": [
+    {
+      "color": "yellow",
+      "completed_at": null,
+      "created_at": "2026-10-25T00:00:00.000Z",
+      "description": "",
+      "id": "project",
+      "repo_path": null,
+      "status": "active",
+      "title": "迁移契约项目"
+    }
+  ],
+  "focus": [
+    {
+      "active_since": null,
+      "elapsed_seconds": 900,
+      "ended_at": "2026-10-25T00:20:00.000Z",
+      "goal_seconds": 0,
+      "id": "focus",
+      "started_at": "2026-10-25T00:00:00.000Z",
+      "status": "ended",
+      "task_id": "task",
+      "untracked_seconds": 0
+    }
+  ],
+  "focusIntervals": [
+    {
+      "ended_at": "2026-10-25T00:05:00.000Z",
+      "focus_id": "focus",
+      "id": "interval-0",
+      "started_at": "2026-10-25T00:00:00.000Z"
+    },
+    {
+      "ended_at": "2026-10-25T00:20:00.000Z",
+      "focus_id": "focus",
+      "id": "interval-1",
+      "started_at": "2026-10-25T00:10:00.000Z"
+    }
+  ]
+}

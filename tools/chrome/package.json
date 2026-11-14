@@ -1,0 +1,17 @@
+{
+  "name": "workbench-chrome-tool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:integration": "node tests/integration.mjs",
+    "test:packaged": "node tests/packaged-smoke.mjs ../../apple/Resources/ChromeRuntime"
+  },
+  "dependencies": {
+    "playwright-core": "file:vendor/playwright-core-1.62.1.tgz"
+  }
+}

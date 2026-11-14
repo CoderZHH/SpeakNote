@@ -1,0 +1,306 @@
+{
+  "semester": {
+    "id": "semester-2026-autumn",
+    "title": "示例学期",
+    "first_monday": "2026-09-14",
+    "weeks": 16,
+    "periods": [
+      {
+        "number": 1,
+        "start": "08:00",
+        "end": "08:45"
+      },
+      {
+        "number": 2,
+        "start": "08:55",
+        "end": "09:40"
+      },
+      {
+        "number": 3,
+        "start": "10:00",
+        "end": "10:45"
+      },
+      {
+        "number": 4,
+        "start": "10:55",
+        "end": "11:40"
+      },
+      {
+        "number": 5,
+        "start": "13:00",
+        "end": "13:45"
+      },
+      {
+        "number": 6,
+        "start": "13:55",
+        "end": "14:40"
+      },
+      {
+        "number": 7,
+        "start": "15:00",
+        "end": "15:45"
+      },
+      {
+        "number": 8,
+        "start": "15:55",
+        "end": "16:40"
+      },
+      {
+        "number": 9,
+        "start": "18:00",
+        "end": "18:45"
+      },
+      {
+        "number": 10,
+        "start": "18:55",
+        "end": "19:40"
+      },
+      {
+        "number": 11,
+        "start": "20:00",
+        "end": "20:45"
+      },
+      {
+        "number": 12,
+        "start": "20:55",
+        "end": "21:40"
+      }
+    ]
+  },
+  "courses": [
+    {
+      "id": "course-2026-research-methods",
+      "title": "示例课程 A",
+      "teacher": "",
+      "code": "DEMO-01",
+      "color": "#6a91ad",
+      "meetings": [
+        {
+          "id": "meeting-2026-research-methods-1",
+          "weekday": 1,
+          "weeks": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "period_start": 5,
+          "period_end": 8,
+          "room": "示例教室 1"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-socialism",
+      "title": "示例课程 B",
+      "teacher": "",
+      "code": "DEMO-02",
+      "color": "#a37d9b",
+      "meetings": [
+        {
+          "id": "meeting-2026-socialism-1",
+          "weekday": 2,
+          "weeks": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "period_start": 1,
+          "period_end": 4,
+          "room": "示例教室 2"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-business-innovation",
+      "title": "示例课程 C",
+      "teacher": "",
+      "code": "DEMO-03",
+      "color": "#bc976a",
+      "meetings": [
+        {
+          "id": "meeting-2026-business-innovation-1",
+          "weekday": 2,
+          "weeks": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "period_start": 5,
+          "period_end": 7,
+          "room": "示例教室 3"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-decision",
+      "title": "示例课程 D",
+      "teacher": "",
+      "code": "DEMO-04",
+      "color": "#788eba",
+      "meetings": [
+        {
+          "id": "meeting-2026-decision-1",
+          "weekday": 3,
+          "weeks": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "period_start": 1,
+          "period_end": 4,
+          "room": "示例教室 4"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-operations",
+      "title": "示例课程 E",
+      "teacher": "",
+      "code": "DEMO-05",
+      "color": "#6e9b90",
+      "meetings": [
+        {
+          "id": "meeting-2026-operations-1",
+          "weekday": 3,
+          "weeks": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "period_start": 5,
+          "period_end": 8,
+          "room": "示例教室 5"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-management-frontiers",
+      "title": "示例课程 F",
+      "teacher": "",
+      "code": "DEMO-06",
+      "color": "#858cb7",
+      "meetings": [
+        {
+          "id": "meeting-2026-management-frontiers-1",
+          "weekday": 4,
+          "weeks": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "period_start": 1,
+          "period_end": 4,
+          "room": "示例教室 6"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-english",
+      "title": "示例课程 G",
+      "teacher": "",
+      "code": "DEMO-07",
+      "color": "#b48676",
+      "meetings": [
+        {
+          "id": "meeting-2026-english-1",
+          "weekday": 4,
+          "weeks": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "period_start": 3,
+          "period_end": 4,
+          "room": "示例教室 7"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-advanced-operations",
+      "title": "示例课程 H",
+      "teacher": "",
+      "code": "DEMO-08",
+      "color": "#759796",
+      "meetings": [
+        {
+          "id": "meeting-2026-advanced-operations-1",
+          "weekday": 4,
+          "weeks": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "period_start": 5,
+          "period_end": 8,
+          "room": "示例教室 8"
+        }
+      ]
+    },
+    {
+      "id": "course-2026-academic-writing",
+      "title": "示例课程 I",
+      "teacher": "",
+      "code": "DEMO-09",
+      "color": "#9a8caf",
+      "meetings": [
+        {
+          "id": "meeting-2026-academic-writing-1",
+          "weekday": 4,
+          "weeks": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "period_start": 9,
+          "period_end": 10,
+          "room": "示例教室 9"
+        }
+      ]
+    }
+  ]
+}
