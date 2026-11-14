@@ -1,9 +1,9 @@
+#if os(macOS)
 import CommonCrypto
 import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
-import WorkBenchKit
 
 // Wire format reference: Tencent/openclaw-weixin, src/api and src/auth/login-qr.ts.
 // This client has no dependency on the OpenClaw runtime or npm.
@@ -62,11 +62,12 @@ struct WeChatClient: Sendable {
     return (id, payload)
   }
 
-  func waitForPair(id: String, askPIN: () throws -> String) async throws -> WeChatCredentials {
+  func waitForPair(id: String, isolation: isolated (any Actor)? = #isolation, onScan: () async -> Void = {}, askPIN: () async throws -> String) async throws -> WeChatCredentials {
     var base = Self.defaultBase
     var pin: String?
     let until = ContinuousClock.now + .seconds(160)
     while ContinuousClock.now < until {
+      try Task.checkCancellation()
       var query = [URLQueryItem(name: "qrcode", value: id)]
       if let pin { query.append(.init(name: "verify_code", value: pin)) }
       let packet: JSONValue
@@ -87,11 +88,12 @@ struct WeChatClient: Sendable {
           Self.trusted(redirect) else { throw WorkBenchError("微信返回了无法识别的绑定地址") }
         base = redirect
       case "need_verifycode", "confirmed_but_need_verifycode":
-        pin = try askPIN()
+        pin = try await askPIN()
       case "expired": throw WorkBenchError("微信绑定二维码已过期，请重新发起绑定")
       case "verify_code_blocked": throw WorkBenchError("微信已停止校验配对码，请重新发起绑定")
       case "binded_redirect": throw WorkBenchError("微信返回已有绑定，未发放新的连接凭据")
-      case "wait", "scaned": break
+      case "scaned": await onScan()
+      case "wait": break
       default: throw WorkBenchError("微信返回了当前版本尚不支持的绑定状态")
       }
       try await Task.sleep(for: .seconds(1))
@@ -246,3 +248,4 @@ struct WeChatClient: Sendable {
     return png
   }
 }
+#endif

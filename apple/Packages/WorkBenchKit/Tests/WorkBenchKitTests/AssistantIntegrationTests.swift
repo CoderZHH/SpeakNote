@@ -3,7 +3,6 @@ import Foundation
 import Testing
 
 @testable import WorkBenchKit
-@testable import WorkbenchAssistant
 
 @Test func assistantCredentialsStayInsideTheirWorkspace() throws {
   let first = try Fixture()
@@ -71,6 +70,8 @@ import Testing
   #expect(replay.text == reply.text)
   let data = try await database.snapshot()
   let task = try #require(data[.tasks].first)
+  #expect(reply.createdTaskID == task.id)
+  #expect(replay.createdTaskID == task.id)
   let project = try #require(data[.projects].first)
   #expect(data[.tasks].count == 1 && data[.projects].count == 1)
   #expect(task[.projectID] == .string(project.id))

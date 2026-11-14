@@ -5,5 +5,5 @@ let package = Package(name: "WorkBenchKit", platforms: [.macOS(.v26), .iOS(.v26)
     .systemLibrary(name: "CSQLite", pkgConfig: "sqlite3"),
     .target(name: "WorkBenchKit", dependencies: ["CSQLite", "WorkBenchActivity"], resources: [.process("Resources")]),
     .executableTarget(name: "WorkbenchAssistant", dependencies: ["WorkBenchKit"]),
-    .testTarget(name: "WorkBenchKitTests", dependencies: ["WorkBenchKit", .target(name: "WorkbenchAssistant", condition: .when(platforms: [.macOS]))], resources: [.process("Fixtures")])
+    .testTarget(name: "WorkBenchKitTests", dependencies: ["WorkBenchKit"], resources: [.process("Fixtures")])
 ])

@@ -8,9 +8,18 @@ enum TaskFilter: String, CaseIterable, Identifiable {
   case abandoned = "放弃"
   var id: String { rawValue }
 }
+#if os(macOS)
+extension EnvironmentValues {
+  @Entry var revealedWeChatTask: String? = nil
+}
+#endif
+
 struct TodayView: View {
   @Environment(AppSession.self) private var session
   @Environment(\.openCollection) private var openCollection
+  #if os(macOS)
+    @Environment(\.revealedWeChatTask) private var revealedTask
+  #endif
   @State private var records = false
   @State private var filter: TaskFilter = .today
   @State private var adding = false
@@ -64,6 +73,11 @@ struct TodayView: View {
           } else {
             compactPage
           }
+        }
+        .onChange(of: revealedTask, initial: true) { _, id in
+          guard let id, let task = snapshot.item(.tasks, id) else { return }
+          records = false
+          filter = TaskFilter.allCases.first { taskItems($0).contains { $0.id == task.id } } ?? .today
         }
       #else
         compactPage
@@ -125,18 +139,20 @@ struct TodayView: View {
   private var taskPanel: some View {
     VStack(alignment: .leading, spacing: 8) {
       taskFilters
-      ScrollView {
-        LazyVStack(spacing: 0) {
-          taskRows(dividers: true)
-        }.padding(.vertical, 2)
-      }.accessibilityIdentifier("today.tasks")
+      revealTaskIn {
+        ScrollView {
+          LazyVStack(spacing: 0) {
+            taskRows(dividers: true)
+          }.padding(.vertical, 2)
+        }.accessibilityIdentifier("today.tasks")
+      }
     }
   }
   @ViewBuilder private func taskRows(dividers: Bool = false) -> some View {
-    ForEach(tasks) { taskRow($0, divider: dividers) }
+    ForEach(tasks) { highlightedTaskRow($0, divider: dividers) }
     if filter == .today, !completedToday.isEmpty {
       Section {
-        ForEach(completedToday) { taskRow($0, divider: dividers) }
+        ForEach(completedToday) { highlightedTaskRow($0, divider: dividers) }
       } header: {
         HStack(spacing: WorkbenchDesign.Space.small) {
           Text("今日已完成")
@@ -151,6 +167,37 @@ struct TodayView: View {
       }
     }
   }
+  private struct RevealTarget: Equatable {
+    let id: String?
+    let filter: TaskFilter
+  }
+
+  @ViewBuilder private func revealTaskIn<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    let view = content()
+    #if os(macOS)
+      ScrollViewReader { reader in
+        view.task(id: RevealTarget(id: revealedTask, filter: filter)) {
+          guard let revealedTask else { return }
+          await Task.yield()
+          guard !Task.isCancelled else { return }
+          reader.scrollTo(revealedTask, anchor: .center)
+        }
+      }
+    #else
+      view
+    #endif
+  }
+
+  @ViewBuilder private func highlightedTaskRow(_ item: WorkspaceItem, divider: Bool) -> some View {
+    #if os(macOS)
+      taskRow(item, divider: divider)
+        .background(item.id == revealedTask ? WorkbenchDesign.selectionBackground : .clear)
+        .id(item.id)
+    #else
+      taskRow(item, divider: divider)
+    #endif
+  }
+
   @ViewBuilder private func taskRow(_ item: WorkspaceItem, divider: Bool) -> some View {
     if divider {
       VStack(spacing: 0) {
@@ -206,7 +253,7 @@ struct TodayView: View {
         }
       } else {
         taskFilters.padding(.horizontal, WorkbenchDesign.pageInset)
-        WorkspaceList { taskRows() }
+        revealTaskIn { WorkspaceList { taskRows() } }
       }
     }.padding(.top, 10).background(WorkbenchDesign.canvas)
   }

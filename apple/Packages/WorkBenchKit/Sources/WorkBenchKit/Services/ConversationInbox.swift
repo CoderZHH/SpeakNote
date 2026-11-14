@@ -1,6 +1,6 @@
+#if os(macOS)
 import CryptoKit
 import Foundation
-import WorkBenchKit
 
 struct ConversationMessage: Codable, Sendable {
   let id: String
@@ -43,3 +43,4 @@ struct ConversationBatch: Codable, Sendable {
       .map { String(format: "%02x", $0) }.joined()
   }
 }
+#endif

@@ -48,6 +48,7 @@ import Observation
   @ObservationIgnored private var syncRequested = false
   #if os(macOS)
     @ObservationIgnored var assistantBridge: AssistantBridge?
+    let weChatAssistant = WeChatAssistant()
   #endif
   #if os(iOS)
     @ObservationIgnored private var focusActivity: FocusLiveActivity?
@@ -102,7 +103,10 @@ import Observation
       await refreshFocusSurfaces()
       error = nil
       #if os(macOS)
-        if let personal { startAssistantBridge(personal) }
+        if let personal {
+          startAssistantBridge(personal)
+          weChatAssistant.configure(session: self, store: personal, directory: location.directory)
+        }
       #endif
       if role == .workbench { await refreshWorkspaceReminders(force: true) }
     } catch { self.error = error.localizedDescription }

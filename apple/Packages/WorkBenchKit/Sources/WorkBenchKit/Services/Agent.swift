@@ -1,10 +1,12 @@
+#if os(macOS)
 import Foundation
-import WorkBenchKit
 
 struct AgentReply: Sendable {
   let text: String
   var pending: PendingChange? = nil
   var waitingForImage = false
+  var createdTaskID: String? = nil
+  var failed = false
 }
 
 struct PendingChange: Codable, Sendable {
@@ -164,7 +166,7 @@ struct Agent: Sendable {
           let result = try await workspace("apply", .object(payload))
           if let reply = receipt(result["result"]) { return reply }
           let message = result["error"].string
-          return .init(text: message.isEmpty ? "没有收到保存回执，请先查询是否已保存。" : "未执行：\(message)")
+          return .init(text: message.isEmpty ? "没有收到保存回执，请先查询是否已保存。" : "未执行：\(message)", failed: true)
         default: reply = .object(["error": .string("未知工具")])
         }
         messages.append(.object([
@@ -191,10 +193,13 @@ struct Agent: Sendable {
   private func receipt(_ result: JSONValue) -> AgentReply? {
     guard result["status"] == .string("succeeded") else { return nil }
     let items = result["items"].array
+    let taskID = items.first {
+      $0["entity"] == .string("tasks") && $0["kind"] == .string("create")
+    }.flatMap { $0["id"].string.isEmpty ? nil : $0["id"].string }
     let details = items.map { $0["summary"].string }.filter { !$0.isEmpty }
-    if details.count == 1 { return .init(text: "已" + details[0] + "。") }
-    if details.isEmpty { return .init(text: "已在 WorkBench 保存 \(items.count) 项变更。") }
-    return .init(text: String(("已在 WorkBench 完成：\n" + details.map { "• " + $0 }.joined(separator: "\n")).prefix(1500)))
+    if details.count == 1 { return .init(text: "已" + details[0] + "。", createdTaskID: taskID) }
+    if details.isEmpty { return .init(text: "已在 WorkBench 保存 \(items.count) 项变更。", createdTaskID: taskID) }
+    return .init(text: String(("已在 WorkBench 完成：\n" + details.map { "• " + $0 }.joined(separator: "\n")).prefix(1500)), createdTaskID: taskID)
   }
 
   private func message(_ role: String, _ content: JSONValue) -> JSONValue {
@@ -205,16 +210,24 @@ struct Agent: Sendable {
 struct DeepSeekClient: Sendable {
   let key: String
 
-  func complete(_ messages: [JSONValue]) async throws -> JSONValue {
+  func validate() async throws {
+    _ = try await complete(
+      [.object(["role": .string("user"), "content": .string("请回复 OK。")])],
+      includeTools: false)
+  }
+
+  func complete(_ messages: [JSONValue], includeTools: Bool = true) async throws -> JSONValue {
     var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
     request.httpMethod = "POST"
     request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.timeoutInterval = 25
-    request.httpBody = try JSONValue.object([
+    var body: Record = [
       "model": .string("deepseek-flash"), "thinking": .object(["type": .string("disabled")]),
-      "max_tokens": .integer(2000), "messages": .array(messages), "tools": .array(AssistantContract.tools),
-    ]).data()
+      "max_tokens": .integer(includeTools ? 2000 : 16), "messages": .array(messages),
+    ]
+    if includeTools { body["tools"] = .array(AssistantContract.tools) }
+    request.httpBody = try JSONValue.object(body).data()
     let data: Data
     let response: URLResponse
     do { (data, response) = try await assistantHTTP.data(for: request) }
@@ -225,7 +238,12 @@ struct DeepSeekClient: Sendable {
     }
     guard let status = (response as? HTTPURLResponse)?.statusCode, status == 200 else {
       let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-      throw WorkBenchError("DeepSeek 请求未成功（HTTP \(status)）")
+      switch status {
+      case 401: throw WorkBenchError("DeepSeek 未接受这个 API Key，请检查或重新生成。")
+      case 402: throw WorkBenchError("DeepSeek 账户余额不足，请在平台充值后重试。")
+      case 429: throw WorkBenchError("DeepSeek 请求过于频繁，请稍后重试。")
+      default: throw WorkBenchError("DeepSeek 请求未成功（HTTP \(status)）")
+      }
     }
     let payload = try JSONValue(data: data)
     guard let first = payload["choices"].array.first, first["message"]["role"] == .string("assistant") else {
@@ -236,3 +254,4 @@ struct DeepSeekClient: Sendable {
   }
 
 }
+#endif

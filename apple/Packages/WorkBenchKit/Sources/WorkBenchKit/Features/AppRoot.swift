@@ -44,6 +44,13 @@ public enum AppModule: String, CaseIterable, Identifiable {
 public struct WorkBenchRoot: View {
   @State private var session: AppSession
   @State private var selected: AppModule? = .today
+  #if os(macOS)
+    @AppStorage("didShowWeChatWelcome") private var didShowWeChatWelcome = false
+    @AppStorage("didFinishWeChatSetup") private var didFinishWeChatSetup = false
+    @State private var showingWeChat = false
+    @State private var weChatWelcome = false
+    @State private var revealedTask: String?
+  #endif
   #if os(iOS)
     private enum PhoneTab: Hashable { case today, photos, thoughts, projects, more }
     @State private var phoneTab = PhoneTab.today
@@ -70,11 +77,22 @@ public struct WorkBenchRoot: View {
               Section("规划") {
                 ForEach([AppModule.learning, .courses]) { module in sidebarRow(module) }
               }
-              Section { sidebarRow(.settings) }
+              Section {
+                Button {
+                  weChatWelcome = false
+                  showingWeChat = true
+                } label: {
+                  Label("微信助手", systemImage: "bubble.left.and.bubble.right")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("wechat.assistant.open")
+                sidebarRow(.settings)
+              }
             }.listStyle(.sidebar)
               .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 240)
           } detail: {
             ModuleHost(module: selected ?? .today)
+              .environment(\.revealedWeChatTask, revealedTask)
           }
         #else
           TabView(selection: $phoneTab) {
@@ -96,6 +114,13 @@ public struct WorkBenchRoot: View {
     .environment(session)
     .task {
       await session.start()
+      #if os(macOS)
+        if session.workspace != nil && !didShowWeChatWelcome {
+          didShowWeChatWelcome = true
+          weChatWelcome = true
+          showingWeChat = true
+        }
+      #endif
       if session.photos != nil { await session.sync() }
     }
     .onChange(of: phase) { _, value in
@@ -108,6 +133,16 @@ public struct WorkBenchRoot: View {
         }
       }
     }
+    #if os(macOS)
+      .sheet(isPresented: $showingWeChat) {
+        WeChatAssistantView(welcome: weChatWelcome, resumeTrial: !didFinishWeChatSetup) { id in
+          didFinishWeChatSetup = true
+          if revealedTask == id { revealedTask = nil }
+          selected = .today
+          revealedTask = id
+        }.environment(session)
+      }
+    #endif
     #if os(iOS)
       .onOpenURL { url in
         if session.role == .workbench && url.scheme == "workbench-preview" && url.host == "focus" {

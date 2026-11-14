@@ -8,7 +8,7 @@
 2. 点击 Run。首次启动会创建空工作区，默认数据目录为 `~/Library/Application Support/WorkBench Preview/`。
 3. 如需试用示例内容，在「设置 → 导入备份」选择 [示例工作区](docs/examples/workbench-demo-data.json)。也可在课程页单独载入示例课表。
 
-应用在本机存储数据，Mac 预览版不包含微信助手或 Chrome 工具运行时，也没有启用 iCloud。iOS 与拍照助手的工程源码保留供后续开发。
+首次启动可选择连接微信助手。扫码并使用自己的 DeepSeek API Key 验证后，试着从微信发一条待办。也可以稍后从侧栏的「微信助手」继续。接收消息时需要保持 WorkBench 打开。预览版使用本机存储，未启用 iCloud。
 
 在设置中可以导出或导入工作区记录。JSON 导出不包含附件文件，如需保存附件，请退出 App 后备份整个数据目录。
 

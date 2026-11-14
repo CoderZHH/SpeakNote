@@ -1,11 +1,12 @@
+#if os(macOS)
 import AppKit
 import CryptoKit
 import Darwin
 import Foundation
-import WorkBenchKit
 
 struct AssistantState: Codable {
   var cursor = ""
+  var firstTaskID: String?
   var history: [ChatTurn] = []
   var pending: PendingChange?
   var handled: [String] = []
@@ -52,6 +53,13 @@ struct AssistantFiles {
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
   }
 
+  func resetConversation() throws {
+    for name in ["state.json", "recent-image.data", "paused.json"] {
+      do { try FileManager.default.removeItem(at: local.directory.appendingPathComponent(name)) }
+      catch let error as CocoaError where error.code == .fileNoSuchFile { continue }
+    }
+  }
+
   func cacheImage(_ dataURL: String) throws {
     let url = local.directory.appendingPathComponent("recent-image.data")
     try Data(dataURL.utf8).write(to: url, options: .atomic)
@@ -71,7 +79,7 @@ struct AssistantFiles {
     return try String(contentsOf: url, encoding: .utf8)
   }
 
-  func exclusively<T>(_ operation: () async throws -> T) async throws -> T {
+  func exclusively<T>(isolation: isolated (any Actor)? = #isolation, _ operation: () async throws -> T) async throws -> T {
     let fd = Darwin.open(local.directory.appendingPathComponent("service.lock").path,
       O_CREAT | O_RDWR | O_NOFOLLOW, 0o600)
     guard fd >= 0 else { throw WorkBenchError("请先运行 setup") }
@@ -81,9 +89,8 @@ struct AssistantFiles {
   }
 }
 
-@main
-enum AssistantCommand {
-  static func main() async {
+public enum AssistantCommand {
+  public static func main() async {
     umask(0o077)
     do { try await execute(CommandLine.arguments.dropFirst().first ?? "help") }
     catch {
@@ -172,7 +179,8 @@ enum AssistantCommand {
     }
   }
 
-  private static func serve(_ credential: WeChatCredentials, agent: Agent, files: AssistantFiles) async throws {
+  static func serve(_ credential: WeChatCredentials, agent: Agent, files: AssistantFiles, status: @Sendable (String?) async -> Void = { _ in },
+    onReply: @Sendable (AgentReply) async -> Void = { _ in }) async throws {
     let client = WeChatClient(credential)
     var state = try files.load("state.json") ?? AssistantState()
     state.history = state.history.filter { $0.isRecent() }
@@ -219,8 +227,10 @@ enum AssistantCommand {
             if !text.isEmpty { state.recentImageAt = nil }
           }
         } catch {
-          reply = .init(text: "这次未能完成：\(display(error))", pending: state.pending)
+          try Task.checkCancellation()
+          reply = .init(text: "这次未能完成：\(display(error))", pending: state.pending, failed: true)
         }
+        if state.firstTaskID == nil { state.firstTaskID = reply.createdTaskID }
         // Keep confirmations and their codes out of later model requests.
         state.history = state.history.filter { $0.isRecent() }
         if reply.pending == nil && !text.hasPrefix("确认 ") && !text.hasPrefix("取消 ") && text != "/ping" {
@@ -246,6 +256,7 @@ enum AssistantCommand {
           runID: message["run_id"].string, text: reply.text)
         // Persist the complete batch result and outbound reply before sending.
         try files.save(state, to: "state.json")
+        await onReply(reply)
         try await flush(&state, client: client, files: files)
         continue
       }
@@ -259,11 +270,12 @@ enum AssistantCommand {
       } catch let error as URLError where waiting != nil && error.code == .timedOut {
         continue
       } catch {
-        print(display(error))
+        await status(display(error))
         try await Task.sleep(for: .seconds(delay))
         delay = min(delay * 2, 30)
         continue
       }
+      await status(nil)
       delay = 1
       for message in updates["msgs"].array {
         guard let id = incomingID(message, credential, state) else { continue }
@@ -303,6 +315,7 @@ enum AssistantCommand {
     guard let outbox = state.outbox else { return }
     var delay = 1
     while true {
+      try Task.checkCancellation()
       do {
         try await client.send(outbox.text, id: outbox.id, context: outbox.context, runID: outbox.runID)
         break
@@ -342,3 +355,4 @@ enum AssistantCommand {
     return "本机连接或配置暂不可用，请确认 WorkBench 已打开，再重试。"
   }
 }
+#endif
