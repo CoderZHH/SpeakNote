@@ -1,4 +1,4 @@
-name: Suikouji
+name: SpeakNote
 options:
   minimumXcodeGenVersion: 2.44.0
   xcodeVersion: '26.0'
@@ -40,20 +40,22 @@ targetTemplates:
         NSPhotoLibraryUsageDescription: 选择截图或备注附件
 targets:
   WorkBenchMac:
-    productName: 随口记
+    productName: SpeakNote
     templates: [Host]
     platform: macOS
     info:
       path: Configuration/WorkBenchMac-Info.plist
       properties:
-        CFBundleDisplayName: 随口记
+        CFBundleDisplayName: SpeakNote
+        CFBundleDevelopmentRegion: en
         LSApplicationCategoryType: public.app-category.productivity
     sources:
       - path: Resources/Mac.xcassets
+      - path: Resources/MacLocalization
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.coderzhh.workbenchpreview
-        PRODUCT_NAME: 随口记
+        PRODUCT_NAME: SpeakNote
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
   WorkBenchIOS:
     productName: WorkBench

@@ -1,6 +1,6 @@
 # 原生工程
 
-使用 Xcode 26 与 Swift 6.2。打开 `Suikouji.xcodeproj`，选择 `WorkBenchMac` 并运行，产物为 `随口记.app`。编译 Mac 预览版不需要个人签名资料、CloudKit 容器、Node 或 Chrome。
+使用 Xcode 26 与 Swift 6.2。打开 `SpeakNote.xcodeproj`，选择 `WorkBenchMac` 并运行，产物为 `SpeakNote.app`。编译 Mac 预览版不需要个人签名资料、CloudKit 容器、Node 或 Chrome。
 
 需要隔离测试时，给 Mac 预览版设置 `WORKBENCH_WORKSPACE_ROOT` 指向空测试目录。App 会在该目录下新建 `data/`。
 
