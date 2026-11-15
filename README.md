@@ -2,7 +2,9 @@
 
 原生 Mac 工作台。把任务和随手记放进「今日」，用项目组织进度，在日历安排时间并开启专注。学习与课程也可以单独使用。界面以简体中文为主。
 
-这个仓库目前用于首版开发，尚未提供正式安装包。预览版需要 macOS 26 和 Xcode 26。
+**[下载 Mac 预览版](https://github.com/CoderZHH/SpeakNote/releases/tag/v0.2.0-preview.1)**。需要 macOS 26，支持 Apple Silicon 和 Intel。下载并解压 ZIP，把 `SpeakNote.app` 拖入「应用程序」后打开。应用已签名并通过 Apple 公证。
+
+从源码运行需要 Xcode 26：
 
 1. 打开 `apple/SpeakNote.xcodeproj`，选择 `WorkBenchMac` 和本机 Mac。
 2. 点击 Run。首次启动会创建空工作区，默认数据目录为 `~/Library/Application Support/WorkBench Preview/`。
