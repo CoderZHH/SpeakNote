@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240" role="img" aria-labelledby="title desc">
+  <title id="title">一条微信消息怎样变成待办</title>
+  <desc id="desc">微信发送周五交报告，随口记整理后，Mac 上的 今日 显示交报告这条待办。</desc>
+  <rect width="1200" height="240" rx="24" fill="#F4F4F3"/>
+  <path d="M364 116h73m-12-10 12 10-12 10M722 116h73m-12-10 12 10-12 10" fill="none" stroke="#5F6063" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g stroke="#D7D7D7" stroke-width="2">
+    <rect x="42" y="42" width="308" height="156" rx="20" fill="#FFFFFF"/>
+    <rect x="454" y="42" width="252" height="156" rx="20" fill="#E6E6E5"/>
+    <rect x="812" y="42" width="346" height="156" rx="20" fill="#FFFFFF"/>
+  </g>
+  <g fill="none" stroke="#38393C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M76 74h29a8 8 0 0 1 8 8v15a8 8 0 0 1-8 8H89l-10 8v-8h-3a8 8 0 0 1-8-8V82a8 8 0 0 1 8-8z"/>
+    <path d="M477 96v-5m7 12V84m7 23V80m7 23V84m7 12v-5" stroke-width="3.5"/>
+    <rect x="837" y="74" width="43" height="29" rx="4"/>
+    <path d="M846 112h25m-12-9v9"/>
+  </g>
+  <g font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" fill="#151619">
+    <g font-size="31" font-weight="650">
+      <text x="128" y="101">微信</text>
+      <text x="525" y="101">随口记</text>
+      <text x="898" y="101">Mac · 今日</text>
+    </g>
+    <g font-size="30">
+      <text x="73" y="163">周五交报告</text>
+      <text x="475" y="163">整理为待办</text>
+      <text x="881" y="163">交报告</text>
+    </g>
+  </g>
+  <rect x="837" y="139" width="27" height="27" rx="7" fill="none" stroke="#5F6063" stroke-width="2.5"/>
+</svg>

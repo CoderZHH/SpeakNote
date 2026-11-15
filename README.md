@@ -1,17 +1,43 @@
-# SpeakNote · 随口记
+<div align="center">
+  <img src="apple/Resources/Mac.xcassets/AppIcon.appiconset/icon-128@2x.png" width="120" height="120" alt="随口记应用图标">
+  <h1>SpeakNote · 随口记</h1>
+  <p><strong>在微信记待办，在 Mac 上接着做。</strong></p>
+  <p>连接微信助手后，可以把待办和课表发到 Mac，和项目、日历一起管理。</p>
+  <p><a href="https://github.com/CoderZHH/SpeakNote/releases/download/v0.2.2-preview.1/SpeakNote-0.2.2-macOS-Universal.zip"><strong>下载 0.2.2 Mac 预览版</strong></a> · <a href="https://github.com/CoderZHH/SpeakNote/releases">版本记录</a> · <a href="#从源码运行">从源码运行</a></p>
+  <p><sub>macOS 26+ · Apple Silicon / Intel · Apple 已公证 · MIT</sub></p>
+</div>
 
-原生 Mac 工作台。把任务和随手记放进「今日」，用项目组织进度，在日历安排时间并开启专注。学习与课程也可以单独使用。界面以简体中文为主。
+## 在微信发一条待办
 
-**[下载 Mac 预览版](https://github.com/CoderZHH/SpeakNote/releases/tag/v0.2.1-preview.1)**。需要 macOS 26，支持 Apple Silicon 和 Intel。下载并解压 ZIP，把 `SpeakNote.app` 拖入「应用程序」后打开。应用已签名并通过 Apple 公证。
+![示例流程：在微信发送「周五交报告」，随口记把它保存为 Mac 工作台里的待办](assets/readme/wechat-flow.svg)
 
-从源码运行需要 Xcode 26：
+在微信发「帮我记个待办：周五交报告」，就能在 Mac 的「今日」查看这条任务。
 
-1. 打开 `apple/SpeakNote.xcodeproj`，选择 `WorkBenchMac` 和本机 Mac。
-2. 点击 Run。首次启动会创建空工作区，默认数据目录为 `~/Library/Application Support/WorkBench Preview/`。
-3. 如需试用示例内容，在「设置 → 导入备份」选择 [示例工作区](docs/examples/workbench-demo-data.json)。
+要导入课表，发一张截图或 Excel `.xlsx`。助手会追问缺失的学期起始日、教学周或节次时间，发回预览。你确认后才写入课表。
 
-Mac 首次启动会弹出微信引导。扫微信二维码并验证自己的 DeepSeek API Key 后，工作台会自动打开。进入后可以随时在微信里发待办。后续可以从侧栏管理微信助手。接收消息时需要保持随口记打开。 微信可发送课表截图或 Excel `.xlsx`，助手会问清缺少的学期和节次信息，并在收到确认码后导入。预览版使用本机存储，未启用 iCloud。
+| 你想做什么 | 在哪里做 |
+| --- | --- |
+| 随手记待办、梳理想法 | 「今日」和「思考」 |
+| 看进度、安排时间、开始专注 | 「项目」「日历」和「今日」 |
+| 管理学期、课程和上课安排 | 「课程」，可以手动添加或从微信导入 |
 
-在设置中可以导出或导入工作区记录。JSON 导出不包含附件文件，如需保存附件，请退出 App 后备份整个数据目录。
+## 安装并连接微信
 
-查看[开发说明](apple/README.md)、[架构](docs/architecture.md)和[第三方组件说明](THIRD_PARTY_NOTICES.md)。
+1. 下载并解压 [Mac 安装包](https://github.com/CoderZHH/SpeakNote/releases/download/v0.2.2-preview.1/SpeakNote-0.2.2-macOS-Universal.zip)，将 `SpeakNote.app` 拖到「应用程序」后打开。无需安装 Xcode。
+2. 在首次引导中扫码绑定微信，填入并验证自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)。验证成功后，空白工作台会自动打开。
+3. 想接收微信消息时，保持随口记打开。需要暂停、重连或更换 Key 时，从侧栏进入「微信助手」。
+
+> **预览版说明**　课表导入已通过本地解析与确认测试，真实微信附件收发仍待联调。
+
+## 数据和备份
+
+工作区保存在这台 Mac，预览版未启用 iCloud。DeepSeek Key 保存在 macOS 钥匙串。使用微信助手时，相关消息、附件内容和工作区上下文可能会发送给 DeepSeek。
+
+「设置」支持导出和导入工作区记录，也可以手动导入 [示例工作区](docs/examples/workbench-demo-data.json)。JSON 导出不包含附件；要完整备份，请退出应用后备份整个数据目录，默认位于 `~/Library/Application Support/WorkBench Preview/`。
+
+## 从源码运行
+
+使用 Xcode 26 打开 [SpeakNote.xcodeproj](apple/SpeakNote.xcodeproj)，选择 `WorkBenchMac → My Mac`，点击 Run。
+
+- [开发说明](apple/README.md) · [项目架构](docs/architecture.md)
+- [MIT 许可证](LICENSE) · [第三方组件说明](THIRD_PARTY_NOTICES.md)
