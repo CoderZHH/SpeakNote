@@ -11,7 +11,7 @@
 
 <picture>
   <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/wechat-to-mac.jpg">
-  <img src="assets/readme/wechat-to-mac.gif" alt="示意动画：一束绿光从手机的语音气泡传到 Mac 的待办列表">
+  <img src="assets/readme/wechat-to-mac.gif" alt="示意动画：绿光从手机语音气泡经过 SpeakNote 图标，传到 Mac 的待办列表">
 </picture>
 
 在微信发「帮我记个待办：周五交报告」，就能在 Mac 的「今日」查看这条任务。
