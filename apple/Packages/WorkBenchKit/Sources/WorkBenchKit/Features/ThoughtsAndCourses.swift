@@ -21,6 +21,8 @@ struct ThoughtSummary: View {
 struct ThoughtsView: View {
   @Environment(AppSession.self) private var session
   @State private var tag = "全部"
+  @State private var managingTags = false
+  @State private var tagToRemove: String?
   @State private var search = ""
   @State private var selected: String?
   @State private var composition: ThoughtRoute?
@@ -31,8 +33,9 @@ struct ThoughtsView: View {
     return saved + session.thoughtEditing.pendingItems.filter { !ids.contains($0.id) }
   }
   private var tags: [String] {
-    ["全部", "反思", "思维", "认知"]
-      + Set(allThoughts.flatMap(thoughtTags)).subtracting(["全部", "反思", "思维", "认知"]).sorted()
+    ["全部"] + Set(allThoughts.flatMap { item in
+      session.thoughtEditing.buffers[item.id]?.tags ?? thoughtTags(item)
+    }).subtracting(["全部"]).sorted()
   }
   private var thoughts: [WorkspaceItem] {
     allThoughts.filter {
@@ -68,6 +71,23 @@ struct ThoughtsView: View {
           beginNew(inline: false)
         }
       #endif
+    }
+    .alert("删除标签？", isPresented: Binding(
+      get: { tagToRemove != nil }, set: { if !$0 { tagToRemove = nil } }
+    ), presenting: tagToRemove) { name in
+      Button("删除", role: .destructive) {
+        session.run {
+          guard let store = session.workspace else { return }
+          try await session.thoughtEditing.removeTag(name, from: store)
+          if tag == name { tag = "全部" }
+        }
+      }
+      Button("取消", role: .cancel) {}
+    } message: { name in
+      Text("「\(name)」将从所有思考中移除，正文会保留。")
+    }
+    .onChange(of: tags) { _, available in
+      if !available.contains(tag) { tag = "全部" }
     }
     .navigationDestination(for: ThoughtRoute.self) {
       ThoughtEditor(id: $0.id, initialTags: $0.initialTags)
@@ -109,12 +129,45 @@ struct ThoughtsView: View {
     if allThoughts.contains(where: { $0.id == id }) { return ThoughtRoute(id: id) }
     return nil
   }
+  private var tagManagement: some View {
+      VStack(alignment: .leading, spacing: WorkbenchDesign.Space.medium) {
+        Text("管理标签").font(.headline)
+        if tags.count == 1 {
+          Text("还没有标签").foregroundStyle(.secondary)
+        } else {
+          ScrollView {
+            VStack(alignment: .leading, spacing: WorkbenchDesign.Space.small) {
+              ForEach(tags.dropFirst(), id: \.self) { name in
+                HStack {
+                  Text(name)
+                  Spacer()
+                  Button("删除标签", systemImage: "trash", role: .destructive) {
+                    managingTags = false
+                    tagToRemove = name
+                  }
+                  .labelStyle(.iconOnly)
+                  .accessibilityLabel("删除标签 " + name)
+                }
+              }
+            }
+          }.frame(maxHeight: WorkbenchDesign.ThoughtLayout.tagListHeight)
+        }
+      }
+      .padding(WorkbenchDesign.Space.section)
+      .frame(width: WorkbenchDesign.ThoughtLayout.tagPickerWidth)
+    }
+
   private func browser(selection: Bool) -> some View {
     VStack(spacing: 0) {
       WorkspaceMasterHeader(prompt: "搜索思考", search: $search) {
-        ScrollView(.horizontal) {
-          WorkspaceFilters(values: tags, selection: $tag, title: { $0 })
-        }.scrollIndicators(.hidden)
+        HStack(spacing: WorkbenchDesign.Space.small) {
+          ScrollView(.horizontal) {
+            WorkspaceFilters(values: tags, selection: $tag, title: { $0 })
+          }.scrollIndicators(.hidden)
+          Button("管理标签", systemImage: "tag") { managingTags = true }
+            .labelStyle(.iconOnly).buttonStyle(.borderless).help("管理标签")
+            .popover(isPresented: $managingTags) { tagManagement }
+        }
       }
       WorkspaceList(selection: selection ? $selected : nil, inset: WorkbenchDesign.masterInset) {
         ForEach(thoughts) { item in
@@ -288,9 +341,9 @@ struct ThoughtEditor: View {
   private var allTags: [String] {
     Array(
       Set(
-        ["反思", "思维", "认知"]
-          + (session.workspace?.snapshot[.reflections] ?? []).flatMap(thoughtTags)
-          + session.thoughtEditing.pendingItems.flatMap(thoughtTags))
+        (session.workspace?.snapshot[.reflections] ?? []).flatMap { item in
+          session.thoughtEditing.buffers[item.id]?.tags ?? thoughtTags(item)
+        } + session.thoughtEditing.pendingItems.flatMap(thoughtTags))
     ).sorted()
   }
 }
@@ -495,6 +548,7 @@ struct CoursesView: View {
   @State private var reminders = false
   @State private var addCourse = false
   @State private var editSemester = false
+  @State private var addSemester = false
   @State private var week = Date()
   @State private var semesterID = ""
   private var semesters: [WorkspaceItem] {
@@ -513,33 +567,27 @@ struct CoursesView: View {
   }
   var body: some View {
     VStack(spacing: WorkbenchDesign.Space.medium) {
-      HStack(spacing: WorkbenchDesign.Space.small) {
-        WorkspaceFilters(values: [true, false], selection: $showTable, title: { $0 ? "课表" : "课程" })
-        Spacer(minLength: 0)
-        if showTable {
-          Button("上一周", systemImage: "chevron.left") { shiftWeek(-1) }.labelStyle(.iconOnly)
-          Text(weekLabel).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
-          Button("下一周", systemImage: "chevron.right") { shiftWeek(1) }.labelStyle(.iconOnly)
-        }
-      }
       if semesters.isEmpty {
         ContentUnavailableView {
           Label("暂无学期", systemImage: "graduationcap")
+        } description: {
+          Text("先新建一个学期，再添加你的课程。")
         } actions: {
-          Button("学期管理") { editSemester = true }
-          Button("载入示例课表") {
-            session.run { _ = try await session.workspace?.perform(.installTimetable) }
-          }
+          Button("新建学期") { addSemester = true }
+            .buttonStyle(.borderedProminent)
         }
-      } else if showTable {
-        CourseSchedule(week: week, semesterID: semesterID) { selectedCourse = $0 }
       } else if courses.isEmpty {
         ContentUnavailableView {
           Label("本学期暂无课程", systemImage: "graduationcap")
         } actions: {
           Button("添加课程") { addCourse = true }
+            .buttonStyle(.borderedProminent)
         }
+      } else if showTable {
+        courseHeader
+        CourseSchedule(week: week, semesterID: semesterID) { selectedCourse = $0 }
       } else {
+        courseHeader
         ScrollView {
           CollectionBoardLayout {
             ForEach(courses) { item in
@@ -548,23 +596,29 @@ struct CoursesView: View {
           }
         }
       }
-    }.workspacePage()
-
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    .workspacePage()
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
-          Menu("课程管理", systemImage: "ellipsis.circle") {
-            Button("添加课程", systemImage: "plus") { addCourse = true }
-              .disabled(semesters.isEmpty)
-            if !semesters.isEmpty {
+          Menu {
+            if semesters.isEmpty {
+              Button("新建学期", systemImage: "calendar.badge.plus") { addSemester = true }
+            } else {
+              Button("添加课程", systemImage: "plus") { addCourse = true }
               Picker("学期", selection: $semesterID) {
                 ForEach(semesters) { Text($0.title).tag($0.id) }
               }
             }
             Button("学期管理", systemImage: "calendar.badge.clock") { editSemester = true }
             Button("课程提醒", systemImage: "bell") { reminders = true }
-          }.labelStyle(.iconOnly).menuIndicator(.hidden)
+          } label: {
+            Label("课程管理", systemImage: "ellipsis").labelStyle(.iconOnly)
+          }
+          .menuIndicator(.hidden)
         }
       }
+      .sheet(isPresented: $addSemester) { SemesterEditor() }
       .sheet(isPresented: $reminders) { CourseRemindersView() }
       .sheet(isPresented: $addCourse) {
         CourseEditor(defaultSemesterID: semesterID) { item in
@@ -612,6 +666,18 @@ struct CoursesView: View {
   private func shiftWeek(_ offset: Int) {
     week = Clock.calendar.date(byAdding: .day, value: offset * 7, to: week)!
   }
+  private var courseHeader: some View {
+    HStack(spacing: WorkbenchDesign.Space.small) {
+      WorkspaceFilters(values: [true, false], selection: $showTable, title: { $0 ? "课表" : "课程" })
+      Spacer(minLength: 0)
+      if showTable {
+        Button("上一周", systemImage: "chevron.left") { shiftWeek(-1) }.labelStyle(.iconOnly)
+        Text(weekLabel).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+        Button("下一周", systemImage: "chevron.right") { shiftWeek(1) }.labelStyle(.iconOnly)
+      }
+    }
+  }
+
   private var weekLabel: String {
     let monday = Clock.calendar.dateInterval(of: .weekOfYear, for: week)!.start
     let sunday = Clock.calendar.date(byAdding: .day, value: 6, to: monday)!

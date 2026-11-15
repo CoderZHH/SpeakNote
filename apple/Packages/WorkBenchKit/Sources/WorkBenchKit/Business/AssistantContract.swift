@@ -61,6 +61,7 @@ public enum AssistantContract {
 
   public static let searchTool = "search_workbench"
   public static let scheduleTool = "course_schedule"
+  public static let timetableTool = "preview_timetable_import"
   public static let applyTool = "apply_workbench_changes"
 
   public static var tools: [JSONValue] {
@@ -80,6 +81,23 @@ public enum AssistantContract {
       tool(scheduleTool, "查询指定北京时间日期的上课时间、课程和教室。整周以周一为起点。", [
         "date": string, "week": boolean,
       ], required: ["date"]),
+      tool(timetableTool, """
+        仅生成新学期课表的确认预览，不写入记录。只有用户的资料或明确回答足以确定所有必填数据才使用。
+        第一周周一是明确的 YYYY-MM-DD，weeks 是学期总周数；节次用 24 小时 HH:mm。
+        weekday 为周一=1 至周日=7，weeks 列出具体教学周。没有写明的必填信息先向用户询问。
+        """, [
+        "semester": schema([
+          "title": string, "first_monday": string, "weeks": integer,
+          "periods": array(schema(["number": integer, "start": string, "end": string],
+            required: ["number", "start", "end"])),
+        ], required: ["title", "first_monday", "weeks", "periods"]),
+        "courses": array(schema([
+          "title": string, "teacher": optionalString, "code": optionalString,
+          "meetings": array(schema(["weekday": integer, "period_start": integer, "period_end": integer,
+            "weeks": array(integer), "room": optionalString],
+            required: ["weekday", "period_start", "period_end", "weeks"])),
+        ], required: ["title", "meetings"])),
+      ], required: ["semester", "courses"]),
       tool(applyTool, """
         执行用户明确要求的变更。先查询现有目标，填 target_id 和 expected_version；不明确则问用户。
         新建项目或学习项可用 ref 声明批内别名，后续变更可在关联 ID 或 target_id 中用 @别名。
@@ -103,6 +121,9 @@ public enum AssistantContract {
   private static var optionalString: JSONValue { .object(["type": .array([.string("string"), .string("null")])]) }
   private static var integer: JSONValue { .object(["type": .string("integer")]) }
   private static var boolean: JSONValue { .object(["type": .string("boolean")]) }
+  private static func array(_ items: JSONValue) -> JSONValue {
+    .object(["type": .string("array"), "items": items])
+  }
   private static func choice(_ values: [String]) -> JSONValue {
     .object(["type": .string("string"), "enum": .array(values.map { .string($0) })])
   }

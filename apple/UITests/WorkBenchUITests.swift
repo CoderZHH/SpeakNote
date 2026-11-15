@@ -1,9 +1,10 @@
 import XCTest
 
 final class WorkBenchUITests: XCTestCase {
-  @MainActor func launch() -> XCUIApplication {
+  @MainActor func launch(courseFixtures: Bool = false) -> XCUIApplication {
     let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.ios")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
+    if courseFixtures { app.launchEnvironment["WORKBENCH_QA_COURSES"] = "1" }
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
     app.launch()
     return app
@@ -606,10 +607,9 @@ final class WorkBenchUITests: XCTestCase {
     XCTAssertEqual(input.value as? String, content)
   }
   @MainActor func testCourseDetailGroupsScheduleAndTasks() {
-    let app = launch()
+    let app = launch(courseFixtures: true)
     app.tabBars.buttons["更多"].tap()
     app.staticTexts["课程"].firstMatch.tap()
-    if app.buttons["载入示例课表"].exists { app.buttons["载入示例课表"].tap() }
     app.buttons["filter.课程"].tap()
     let title = app.buttons["示例课程 F"].firstMatch
     XCTAssertTrue(title.waitForExistence(timeout: 5))
@@ -625,11 +625,9 @@ final class WorkBenchUITests: XCTestCase {
     XCTAssertFalse(app.staticTexts["备注与附件"].exists)
   }
   @MainActor func testCourseWeekScrollKeepsTimeAxisAndOpensDetails() throws {
-    let app = launch()
+    let app = launch(courseFixtures: true)
     app.tabBars.buttons["更多"].tap()
     app.staticTexts["课程"].firstMatch.tap()
-    let install = app.buttons["载入示例课表"]
-    if install.exists { install.tap() }
     let grid = app.descendants(matching: .any).matching(identifier: "calendar.week.timeline").firstMatch
     XCTAssertTrue(grid.waitForExistence(timeout: 5))
     let hour = grid.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[0-9]{2}:[0-9]{2}")).firstMatch
@@ -658,11 +656,9 @@ final class WorkBenchUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["课程备注"].exists)
   }
   @MainActor func testCourseRemarksUseNativeEditor() {
-    let app = launch()
+    let app = launch(courseFixtures: true)
     app.tabBars.buttons["更多"].tap()
     app.staticTexts["课程"].firstMatch.tap()
-    let install = app.buttons["载入示例课表"]
-    if install.exists { install.tap() }
     app.buttons["课程管理"].tap()
     app.buttons["添加课程"].tap()
     let name = "Course remarks " + String(UUID().uuidString.prefix(5))
@@ -947,7 +943,7 @@ final class WorkBenchUITests: XCTestCase {
     add(screenshot)
   }
   @MainActor func testCourseDetailKeepsScheduleAndQuickTaskTogether() {
-    let app = launch()
+    let app = launch(courseFixtures: true)
     let more =
       app.tabBars.buttons["更多"].exists ? app.tabBars.buttons["更多"] : app.tabBars.buttons["More"]
     more.tap()
@@ -957,7 +953,6 @@ final class WorkBenchUITests: XCTestCase {
     XCTAssertLessThan(learning.frame.minY, calendar.frame.minY)
     XCTAssertLessThan(calendar.frame.minY, courses.frame.minY)
     courses.tap()
-    if app.buttons["载入示例课表"].exists { app.buttons["载入示例课表"].tap() }
     app.buttons["课程"].firstMatch.tap()
     let course = app.buttons["示例课程 A"].firstMatch
     XCTAssertTrue(course.waitForExistence(timeout: 5))

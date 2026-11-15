@@ -208,6 +208,9 @@ extension AppSession {
         await staging.discard()
         scheduleSync()
         try? await store.refresh()
+      case "prepare_timetable":
+        result = try await db.prepareAssistantTimetable(arguments["timetable"],
+          requestID: assistantRequestID(arguments["request_id"].string))
       case "prepare":
         let plan = try await db.prepareAssistantPlan(arguments, source: "wechat")
         result = try plan.preview()

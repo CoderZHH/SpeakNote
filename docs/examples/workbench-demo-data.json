@@ -4,57 +4,9 @@
   "state": {
     "today": "2026-11-10",
     "timezone": "Asia/Shanghai",
-    "semesters": [
-      {
-        "id": "10000000-0000-4000-8000-000000000001",
-        "title": "2026 秋季学期（模拟）",
-        "first_monday": "2026-08-31",
-        "weeks": 18,
-        "periods": [
-          {
-            "number": 1,
-            "start": "08:30",
-            "end": "09:15"
-          },
-          {
-            "number": 2,
-            "start": "09:25",
-            "end": "10:10"
-          }
-        ],
-        "created_at": "2026-11-10T13:00:00.000Z"
-      }
-    ],
-    "courses": [
-      {
-        "id": "10000000-0000-4000-8000-000000000002",
-        "semester_id": "10000000-0000-4000-8000-000000000001",
-        "title": "软件工程（模拟）",
-        "teacher": "示例老师",
-        "code": "DEMO-SE",
-        "description": "用于演示课程与任务关联",
-        "color": "#648ba8",
-        "status": "active",
-        "completed_at": null,
-        "created_at": "2026-11-10T13:00:00.000Z"
-      }
-    ],
-    "courseMeetings": [
-      {
-        "id": "10000000-0000-4000-8000-000000000003",
-        "course_id": "10000000-0000-4000-8000-000000000002",
-        "weekday": 2,
-        "weeks": [
-          11,
-          12,
-          13
-        ],
-        "period_start": 1,
-        "period_end": 2,
-        "room": "示例楼 A101",
-        "created_at": "2026-11-10T13:00:00.000Z"
-      }
-    ],
+    "semesters": [],
+    "courses": [],
+    "courseMeetings": [],
     "tasks": [
       {
         "id": "10000000-0000-4000-8000-000000000004",
@@ -72,7 +24,7 @@
         "estimate": 25,
         "project_id": null,
         "learning_id": null,
-        "course_id": "10000000-0000-4000-8000-000000000002",
+        "course_id": null,
         "source_note_id": null,
         "resume_hint": "",
         "created_at": "2026-11-10T13:01:00.000Z",
@@ -91,7 +43,7 @@
         "status": "inbox",
         "project_id": null,
         "learning_id": null,
-        "course_id": "10000000-0000-4000-8000-000000000002",
+        "course_id": null,
         "created_at": "2026-11-10T13:02:00.000Z"
       }
     ],

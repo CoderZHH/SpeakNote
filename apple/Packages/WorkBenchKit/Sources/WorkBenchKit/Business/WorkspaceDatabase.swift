@@ -408,6 +408,10 @@ extension WorkspaceDatabase {
   func assistantSearch(_ arguments: JSONValue) throws -> JSONValue {
     try engine.assistantSearch(arguments)
   }
+  func prepareAssistantTimetable(_ input: JSONValue, requestID: String, now: Date = .now) throws -> JSONValue {
+    try engine.prepareAssistantTimetable(input, requestID: requestID, now: now)
+  }
+
   func prepareAssistantPlan(_ changes: JSONValue, source: String, now: Date = .now) throws -> AssistantPreparedPlan {
     try engine.prepareAssistantPlan(changes, source: source, now: now)
   }
@@ -417,6 +421,18 @@ extension WorkspaceDatabase {
   func cancelAssistantPlan(id: String) throws {
     try engine.installAssistant()
     try engine.db.execute("UPDATE wb_assistant_plans SET cancelled=1,payload='{}' WHERE id=? AND result IS NULL", [.string(id)])
+  }
+
+  func removeReflectionTag(_ tag: String, now: Date = .now) throws {
+    try engine.db.transaction {
+      for row in try engine.db.rows("SELECT * FROM reflections") {
+        let tags = thoughtTags(WorkspaceItem(entity: .reflections, fields: row))
+        if tags.contains(tag) {
+          _ = try engine.perform(.update(.reflections, id: row.identifier,
+            fields: [.tags: .array(tags.filter { $0 != tag }.map(JSONValue.string))]), now: now)
+        }
+      }
+    }
   }
 
   public func exportDocument() throws -> JSONValue { try engine.exportDocument() }

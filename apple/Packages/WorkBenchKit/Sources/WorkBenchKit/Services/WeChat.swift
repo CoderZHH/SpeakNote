@@ -171,40 +171,52 @@ struct WeChatClient: Sendable {
   }
 
   static func imageDataURL(_ image: JSONValue) async throws -> String {
-    let media = image["media"]
+    let data = try await mediaBytes(image)
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+      let type = CGImageSourceGetType(source), let mime = UTType(type as String)?.preferredMIMEType,
+      ["image/jpeg", "image/png", "image/gif", "image/webp"].contains(mime)
+    else { throw WorkBenchError("这张图片无法读取，请发 JPEG、PNG、GIF 或 WebP") }
+    return "data:\(mime);base64,\(data.base64EncodedString())"
+  }
+
+  static func timetableFile(_ file: JSONValue) async throws -> String {
+    guard file["file_name"].string.lowercased().hasSuffix(".xlsx") else {
+      throw WorkBenchError("课表文件请保存为 Excel .xlsx，或发送清晰的截图")
+    }
+    return try await TimetableWorkbook.read(mediaBytes(file))
+  }
+
+  private static func mediaBytes(_ item: JSONValue) async throws -> Data {
+    let media = item["media"]
     var components = URLComponents(string: "https://novac2c.cdn.weixin.qq.com/c2c/download")!
     let param = media["encrypt_query_param"].string
     components.queryItems = [.init(name: "encrypted_query_param", value: param)]
     let full = URL(string: media["full_url"].string).flatMap { trusted($0) ? $0 : nil }
     guard let url = full ?? (param.isEmpty ? nil : components.url) else {
-      throw WorkBenchError("这张微信图片没有可用的下载地址")
+      throw WorkBenchError("这个微信附件没有可用的下载地址")
     }
     let limit = 8 * 1024 * 1024
     let bytes: URLSession.AsyncBytes
     let response: URLResponse
     do { (bytes, response) = try await assistantHTTP.bytes(for: URLRequest(url: url, timeoutInterval: 25)) }
     catch let error as URLError where error.code == .timedOut {
-      throw WorkBenchError("微信图片下载超时，请重新发送图片。")
+      throw WorkBenchError("微信附件下载超时，请重新发送。")
     }
     guard (response as? HTTPURLResponse)?.statusCode == 200, response.expectedContentLength <= Int64(limit)
-    else { throw WorkBenchError("无法下载图片，或图片超过 8 MB") }
+    else { throw WorkBenchError("无法下载附件，或附件超过 8 MB") }
     var data = Data()
     for try await byte in bytes {
-      guard data.count < limit else { throw WorkBenchError("图片超过 8 MB") }
+      guard data.count < limit else { throw WorkBenchError("附件超过 8 MB") }
       data.append(byte)
     }
-    let rawKey = image["aeskey"].string
+    let rawKey = item["aeskey"].string
     let key = media["aes_key"].string
     if !rawKey.isEmpty || !key.isEmpty {
       let decoded = !rawKey.isEmpty ? Data(rawKey.utf8) : Data(base64Encoded: key)
-      guard let decoded else { throw WorkBenchError("图片密钥格式不正确") }
+      guard let decoded else { throw WorkBenchError("附件密钥格式不正确") }
       data = try decrypt(data, key: decoded.count == 16 ? decoded : hexKey(decoded))
     }
-    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-      let type = CGImageSourceGetType(source), let mime = UTType(type as String)?.preferredMIMEType,
-      ["image/jpeg", "image/png", "image/gif", "image/webp"].contains(mime)
-    else { throw WorkBenchError("这张图片无法读取，请发 JPEG、PNG、GIF 或 WebP") }
-    return "data:\(mime);base64,\(data.base64EncodedString())"
+    return data
   }
 
   private static func hexKey(_ data: Data) throws -> Data {

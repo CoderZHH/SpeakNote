@@ -163,6 +163,25 @@ func thoughtTags(_ item: WorkspaceItem) -> [String] {
       buffers[id]?.error = error.localizedDescription
     }
   }
+  func removeTag(_ tag: String, from store: WorkspaceStore) async throws {
+    await flushAll(store: store)
+    try require(!buffers.values.contains { $0.tags.contains(tag) && ($0.dirty || $0.saving) },
+      "有包含该标签的思考尚未保存，请先处理后再删除标签。")
+    try await store.database.removeReflectionTag(tag)
+    for id in Array(buffers.keys) {
+      guard let buffer = buffers[id], buffer.tags.contains(tag) else { continue }
+      if buffer.dirty || buffer.saving {
+        try stageTags(id: id, tags: buffer.tags.filter { $0 != tag }, store: store)
+      } else {
+        buffers[id]?.tags.removeAll { $0 == tag }
+      }
+    }
+    try await store.refresh()
+    for item in store.snapshot[.reflections] where buffers[item.id] != nil {
+      begin(item)
+    }
+  }
+
   func flushAll(store: WorkspaceStore) async {
     for id in Array(buffers.keys) { await flush(id: id, store: store) }
   }

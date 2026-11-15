@@ -86,6 +86,12 @@ import Observation
       let personal: WorkspaceStore?
       if role == .workbench {
         personal = WorkspaceStore(database: try WorkspaceDatabase(url: location.workspaceURL))
+        #if DEBUG && os(iOS)
+          let environment = ProcessInfo.processInfo.environment
+          if environment["WORKBENCH_QA"] == "1", environment["WORKBENCH_QA_COURSES"] == "1" {
+            _ = try await personal?.perform(.installTimetable)
+          }
+        #endif
         try await personal?.refresh()
       } else {
         personal = nil

@@ -399,6 +399,9 @@ extension WorkspaceEngine {
         try require(try Clock.parse(stored.text("expires_at")) > now, "操作预览已过期，请重新准备")
         let plan = try JSONDecoder().decode(
           AssistantPreparedPlan.self, from: Data(stored.text("payload").utf8))
+        if let semester = plan.changes.first, semester.entity == "semesters" {
+          try requireNewSemester(semester.fields)
+        }
         for change in plan.changes {
           for (key, expected) in change.versions {
             let parts = key.split(separator: "/", maxSplits: 1).map(String.init)

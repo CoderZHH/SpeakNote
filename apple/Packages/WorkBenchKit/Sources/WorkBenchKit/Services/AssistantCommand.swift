@@ -204,10 +204,19 @@ public enum AssistantCommand {
         let context = message["context_token"].string
         var text = ""
         let images = items.filter { $0["type"].int == 2 }
+        let documents = items.filter { $0["type"].int == 4 }
+        var timetableFile: String?
         let reply: AgentReply
         do {
           text = try messageText(items)
-          if text.isEmpty && images.isEmpty {
+          if documents.count > 1 || (!documents.isEmpty && !images.isEmpty) {
+            reply = .init(text: "请一次发送一个 Excel 文件或一张课表截图。", pending: state.pending)
+          } else if let document = documents.first {
+            let workbook = try await WeChatClient.timetableFile(document["file_item"])
+            timetableFile = workbook
+            reply = try await agent.respond(to: text, image: nil, history: state.history, pending: state.pending,
+              requestID: requestID, timetableFile: workbook)
+          } else if text.isEmpty && images.isEmpty {
             reply = .init(text: "目前支持文字、图片和附带微信转写的语音。", pending: state.pending)
           } else if images.count > 1 {
             reply = .init(text: "请一次发一张图片。", pending: state.pending)
@@ -219,7 +228,8 @@ public enum AssistantCommand {
               if let image { try files.cacheImage(image); state.recentImageAt = .now }
               imageInstruction = state.instructionForIncomingImage()
             } else {
-              image = try files.cachedImage(since: state.recentImageAt)
+              let control = text == "/ping" || text == "/pending" || text.hasPrefix("确认 ") || text.hasPrefix("取消 ")
+              image = control ? nil : try files.cachedImage(since: state.recentImageAt)
               imageInstruction = nil
             }
             reply = try await agent.respond(to: text, image: image, history: state.history, pending: state.pending,
@@ -233,11 +243,18 @@ public enum AssistantCommand {
         if state.firstTaskID == nil { state.firstTaskID = reply.createdTaskID }
         // Keep confirmations and their codes out of later model requests.
         state.history = state.history.filter { $0.isRecent() }
-        if reply.pending == nil && !text.hasPrefix("确认 ") && !text.hasPrefix("取消 ") && text != "/ping" {
-          state.history = Array((state.history + [
-            .init(user: text.isEmpty ? (items.contains { $0["type"].int == 3 } ? "[语音]" : "[图片]") : text,
-              assistant: reply.text),
-          ]).suffix(6))
+        if (reply.pending == nil || reply.pending?.isTimetable == true) && !text.hasPrefix("确认 ") && !text.hasPrefix("取消 ") && text != "/ping" {
+          let user: String
+          if let timetableFile {
+            user = text + "\n[Excel 课表资料]\n" + timetableFile
+          } else if text.isEmpty {
+            user = items.contains { $0["type"].int == 3 } ? "[语音]" : "[图片]"
+          } else {
+            user = text
+          }
+          let answer = reply.pending.flatMap { $0.isTimetable ? $0.preview : nil } ?? reply.text
+          state.history.append(ChatTurn(user: user, assistant: answer))
+          state.history = Array(state.history.suffix(6))
         }
         if reply.waitingForImage, !text.isEmpty {
           state.waitingForImage = true

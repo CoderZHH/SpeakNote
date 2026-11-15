@@ -45,10 +45,10 @@ public struct WorkBenchRoot: View {
   @State private var session: AppSession
   @State private var selected: AppModule? = .today
   #if os(macOS)
-    @AppStorage("didShowWeChatWelcome") private var didShowWeChatWelcome = false
     @AppStorage("didFinishWeChatSetup") private var didFinishWeChatSetup = false
+    @State private var presentingOnboarding = true
+    @State private var enteredWorkspace = false
     @State private var showingWeChat = false
-    @State private var weChatWelcome = false
     @State private var revealedTask: String?
   #endif
   #if os(iOS)
@@ -67,32 +67,10 @@ public struct WorkBenchRoot: View {
         assistant
       } else {
         #if os(macOS)
-          NavigationSplitView {
-            List(selection: $selected) {
-              Section {
-                ForEach([AppModule.today, .thoughts, .projects, .calendar]) { module in
-                  sidebarRow(module)
-                }
-              }
-              Section("规划") {
-                ForEach([AppModule.learning, .courses]) { module in sidebarRow(module) }
-              }
-              Section {
-                Button {
-                  weChatWelcome = false
-                  showingWeChat = true
-                } label: {
-                  Label("微信助手", systemImage: "bubble.left.and.bubble.right")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("wechat.assistant.open")
-                sidebarRow(.settings)
-              }
-            }.listStyle(.sidebar)
-              .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 240)
-          } detail: {
-            ModuleHost(module: selected ?? .today)
-              .environment(\.revealedWeChatTask, revealedTask)
+          if didFinishWeChatSetup || enteredWorkspace {
+            macWorkspace
+          } else {
+            onboardingHost
           }
         #else
           TabView(selection: $phoneTab) {
@@ -114,13 +92,6 @@ public struct WorkBenchRoot: View {
     .environment(session)
     .task {
       await session.start()
-      #if os(macOS)
-        if session.workspace != nil && !didShowWeChatWelcome {
-          didShowWeChatWelcome = true
-          weChatWelcome = true
-          showingWeChat = true
-        }
-      #endif
       if session.photos != nil { await session.sync() }
     }
     .onChange(of: phase) { _, value in
@@ -133,16 +104,6 @@ public struct WorkBenchRoot: View {
         }
       }
     }
-    #if os(macOS)
-      .sheet(isPresented: $showingWeChat) {
-        WeChatAssistantView(welcome: weChatWelcome, resumeTrial: !didFinishWeChatSetup) { id in
-          didFinishWeChatSetup = true
-          if revealedTask == id { revealedTask = nil }
-          selected = .today
-          revealedTask = id
-        }.environment(session)
-      }
-    #endif
     #if os(iOS)
       .onOpenURL { url in
         if session.role == .workbench && url.scheme == "workbench-preview" && url.host == "focus" {
@@ -162,6 +123,68 @@ public struct WorkBenchRoot: View {
       Text(session.error ?? "")
     }
   }
+  #if os(macOS)
+    private var canEnterWorkspace: Bool {
+      let assistant = session.weChatAssistant
+      return assistant.ready && assistant.connected && assistant.hasKey && !assistant.verifying
+    }
+
+    // The assistant can finish setup using the local store before the workspace is visible.
+    private var onboardingHost: some View {
+      Color(nsColor: .windowBackgroundColor)
+        .accessibilityHidden(true)
+        .sheet(isPresented: $presentingOnboarding, onDismiss: {
+          enteredWorkspace = true
+          didFinishWeChatSetup = true
+        }) {
+          WeChatAssistantView(isOnboarding: true, showTask: { _ in })
+            .environment(session)
+            .interactiveDismissDisabled()
+            .onChange(of: canEnterWorkspace, initial: true) { _, configured in
+              if configured { presentingOnboarding = false }
+            }
+        }
+    }
+
+    private var macWorkspace: some View {
+      NavigationSplitView {
+        List(selection: $selected) {
+          Section {
+            ForEach([AppModule.today, .thoughts, .projects, .calendar]) { module in
+              sidebarRow(module)
+            }
+          }
+          Section("规划") {
+            ForEach([AppModule.learning, .courses]) { module in sidebarRow(module) }
+          }
+          Section {
+            Button {
+              showingWeChat = true
+            } label: {
+              Label("微信助手", systemImage: "bubble.left.and.bubble.right")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("wechat.assistant.open")
+            sidebarRow(.settings)
+          }
+        }.listStyle(.sidebar)
+          .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 240)
+      } detail: {
+        ModuleHost(module: selected ?? .today)
+          .environment(\.revealedWeChatTask, revealedTask)
+      }
+      .sheet(isPresented: $showingWeChat) {
+        WeChatAssistantView(isOnboarding: false, showTask: revealWeChatTask)
+          .environment(session)
+      }
+    }
+
+    private func revealWeChatTask(_ id: String) {
+      selected = .today
+      revealedTask = id
+    }
+  #endif
+
   private func sidebarRow(_ module: AppModule) -> some View {
     Label(module.title, systemImage: module.symbol).font(.body).padding(.vertical, 3).tag(module)
   }

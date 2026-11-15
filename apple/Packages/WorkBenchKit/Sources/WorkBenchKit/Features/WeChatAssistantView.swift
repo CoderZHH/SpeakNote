@@ -4,8 +4,7 @@ import SwiftUI
 struct WeChatAssistantView: View {
   @Environment(AppSession.self) private var session
   @Environment(\.dismiss) private var dismiss
-  let welcome: Bool
-  let resumeTrial: Bool
+  let isOnboarding: Bool
   var showTask: (String) -> Void
   @State private var started = false
   @State private var editingKey = false
@@ -19,8 +18,8 @@ struct WeChatAssistantView: View {
   private var savedTask: WorkspaceItem? {
     assistant.taskID.flatMap { session.workspace?.snapshot.item(.tasks, $0) }
   }
-  private var showsWelcome: Bool { welcome && !started }
-  private var showsTrial: Bool { trying || (resumeTrial && assistant.connected && assistant.hasKey) }
+  private var showsWelcome: Bool { isOnboarding && !started && !assistant.connected && assistant.ready }
+  private var showsTrial: Bool { !isOnboarding && trying }
 
   var body: some View {
     VStack(alignment: .leading, spacing: WorkbenchDesign.Space.group) {
@@ -35,6 +34,8 @@ struct WeChatAssistantView: View {
         pairing
       } else if !assistant.hasKey || editingKey {
         keyForm
+      } else if isOnboarding {
+        Text("正在打开工作台…").foregroundStyle(.secondary)
       } else if showsTrial {
         firstTask
       } else {
@@ -45,7 +46,8 @@ struct WeChatAssistantView: View {
           .font(.callout).foregroundStyle(.secondary)
           .textSelection(.enabled)
       }
-      footer
+      Divider()
+      footer.controlSize(.large)
     }
     .padding(WorkbenchDesign.sheetInset)
     .frame(width: WorkbenchDesign.sheetWidth)
@@ -75,29 +77,32 @@ struct WeChatAssistantView: View {
   }
 
   private var header: some View {
-    VStack(alignment: .leading, spacing: WorkbenchDesign.Space.small) {
-      Image(systemName: showsWelcome ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
-        .font(.title).foregroundStyle(.tint)
+    HStack(alignment: .center, spacing: WorkbenchDesign.Space.medium) {
+      Image(systemName: "bubble.left.and.bubble.right")
+        .font(.title3.weight(.medium))
+        .foregroundStyle(.tint)
+        .frame(width: WorkbenchDesign.controlHeight, height: WorkbenchDesign.controlHeight)
+        .background(WorkbenchDesign.selectionBackground, in: .rect(cornerRadius: WorkbenchDesign.radius))
         .accessibilityHidden(true)
-      Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-      if !showsWelcome, assistant.ready, started || showsTrial {
-        Text(step).font(.subheadline).foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: WorkbenchDesign.Space.small) {
+        Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+        if isOnboarding && assistant.ready && !assistant.hasKey {
+          Text(assistant.connected ? "第 2 步，共 2 步" : "第 1 步，共 2 步")
+            .font(.subheadline).foregroundStyle(.secondary)
+        }
       }
+      Spacer(minLength: 0)
     }
   }
 
   private var title: String {
+    if !assistant.ready { return "连接微信助手" }
     if showsWelcome { return "在微信里发一句话，待办就出现在随口记" }
     if !assistant.connected && assistant.ready { return "扫码连接微信" }
     if assistant.ready && (!assistant.hasKey || editingKey) { return "配置 DeepSeek" }
+    if isOnboarding { return "微信助手已配置" }
     if showsTrial { return savedTask == nil ? "试着发一条待办" : "第一条待办已保存" }
     return "微信助手"
-  }
-
-  private var step: String {
-    if !assistant.connected { return "第 1 步，共 3 步" }
-    if !assistant.hasKey || editingKey { return "第 2 步，共 3 步" }
-    return "第 3 步，共 3 步"
   }
 
   private var pairing: some View {
@@ -123,7 +128,8 @@ struct WeChatAssistantView: View {
           .disabled(!validPIN)
       } else if assistant.busy && assistant.qr != nil {
         Label(assistant.scanned ? "已扫码，请在手机上确认" : "等待扫码", systemImage: "qrcode")
-          .foregroundStyle(.secondary)
+          .font(.callout).foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity)
       }
     }
   }
@@ -185,18 +191,25 @@ struct WeChatAssistantView: View {
 
   private var connectionSettings: some View {
     VStack(alignment: .leading, spacing: WorkbenchDesign.Space.medium) {
-      LabeledContent("微信", value: "已绑定")
-      LabeledContent("DeepSeek", value: "已配置")
-      LabeledContent("助手", value: assistant.online ? "在线" : assistant.running ? "连接中" : "已停止")
+      VStack(spacing: WorkbenchDesign.Space.small) {
+        LabeledContent("微信", value: "已绑定")
+        Divider()
+        LabeledContent("DeepSeek", value: "已配置")
+        Divider()
+        LabeledContent("助手", value: assistant.online ? "在线" : assistant.running ? "连接中" : "已停止")
+      }
+      .workspaceCard()
       keepOpen
       HStack {
         Button(assistant.running ? "暂停接收" : "启动助手") {
           Task { await assistant.setPaused(assistant.running) }
         }.disabled(assistant.stopping)
-        Button("更换 API Key") { editingKey = true }
-        Button("清除 API Key") { Task { await assistant.clearKey() } }
-          .disabled(assistant.stopping)
-        Button("解绑微信…") { confirmDisconnect = true }.disabled(assistant.stopping)
+        Spacer()
+        Menu("连接设置") {
+          Button("更换 API Key") { editingKey = true }
+          Button("清除 API Key", role: .destructive) { Task { await assistant.clearKey() } }
+          Button("解绑微信…", role: .destructive) { confirmDisconnect = true }
+        }.disabled(assistant.stopping)
       }
     }
   }
@@ -208,9 +221,17 @@ struct WeChatAssistantView: View {
 
   private var footer: some View {
     HStack {
-      Button(showsWelcome ? "先看看工作台" : "关闭") { dismiss() }.keyboardShortcut(.cancelAction)
+      if !isOnboarding {
+        Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
+      }
       Spacer()
-      if showsWelcome {
+      if !assistant.ready {
+        if let store = session.workspace, let directory = session.location?.directory {
+          Button("重试") {
+            assistant.configure(session: session, store: store, directory: directory)
+          }.buttonStyle(.borderedProminent)
+        }
+      } else if showsWelcome {
         Button("连接微信") {
           started = true
           trying = true
@@ -232,7 +253,7 @@ struct WeChatAssistantView: View {
       } else if showsTrial, let savedTask {
         Button("在今日查看") {
           showTask(savedTask.id)
-          dismiss()
+          if !isOnboarding { dismiss() }
         }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
       } else if showsTrial && !assistant.running && !assistant.stopping {
         Button("启动助手") { Task { await assistant.setPaused(false) } }

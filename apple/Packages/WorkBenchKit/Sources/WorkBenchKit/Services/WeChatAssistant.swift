@@ -82,7 +82,8 @@ private struct AssistantKeychain {
   @ObservationIgnored private var sendToWorkspace: (@Sendable (String, JSONValue) async -> JSONValue)?
 
   func configure(session: AppSession, store: WorkspaceStore, directory: URL) {
-    guard files == nil else { return }
+    guard !ready else { return }
+    issue = nil
     let local = AssistantLocal(workspaceDirectory: directory)
     let files = AssistantFiles(local: local)
     let keychain = AssistantKeychain(directory: directory)
