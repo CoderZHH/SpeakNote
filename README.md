@@ -9,7 +9,10 @@
 
 ## 在微信发一条待办
 
-![示例流程：在微信发送「周五交报告」，随口记把它保存为 Mac 工作台里的待办](assets/readme/wechat-flow.svg)
+<picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/wechat-to-mac.jpg">
+  <img src="assets/readme/wechat-to-mac.gif" alt="示意动画：一束绿光从手机的语音气泡传到 Mac 的待办列表">
+</picture>
 
 在微信发「帮我记个待办：周五交报告」，就能在 Mac 的「今日」查看这条任务。
 
