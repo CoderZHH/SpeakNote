@@ -34,7 +34,7 @@
 
 ## 更新
 
-打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.4 或更早版本先从[官方下载页](https://github.com/CoderZHH/SpeakNote-Releases#readme)下载并覆盖安装一次。
+打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.5 或更早版本先从[官方下载页](https://github.com/CoderZHH/SpeakNote-Releases#readme)下载并覆盖安装一次。
 
 ## 数据和备份
 
