@@ -31,12 +31,16 @@ func courseNotificationDateComponents(_ date: Date) -> DateComponents {
   private func owns(_ id: String) -> Bool {
     id.hasPrefix("workbench-task:") || id.hasPrefix("workbench-course:")
   }
+  func authorizationStatus() async -> UNAuthorizationStatus {
+    guard !testing else { return .denied }
+    return await center.notificationSettings().authorizationStatus
+  }
   func authorized(requestPermission: Bool) async throws -> Bool {
-    guard !testing else { return false }
-    if requestPermission { _ = try await center.requestAuthorization(options: [.alert, .sound]) }
-    let settings = await center.notificationSettings()
-    return settings.authorizationStatus == .authorized
-      || settings.authorizationStatus == .provisional
+    let status = await authorizationStatus()
+    if requestPermission && status == .notDetermined {
+      return try await center.requestAuthorization(options: [.alert, .sound])
+    }
+    return status == .authorized || status == .provisional
   }
   func pending() async -> [LocalReminder] {
     guard !testing else { return [] }

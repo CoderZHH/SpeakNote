@@ -60,13 +60,13 @@ func workspaceReminderPlan(snapshot: WorkspaceSnapshot, now: Date, courseMinutes
 
   func requestAuthorization() async throws {
     guard try await client.authorized(requestPermission: true) else {
-      throw WorkBenchError("请在系统设置中允许 WorkBench 通知，再开启提醒。")
+      throw WorkBenchError("请在系统设置的「通知」里允许 SpeakNote（随口记）发送通知，再开启提醒。")
     }
     applied = nil
   }
   func checkAuthorization() async throws {
     guard try await client.authorized(requestPermission: false) else {
-      throw WorkBenchError("请先在 Mac 的系统设置里允许 WorkBench 通知，再请我设置提醒。")
+      throw WorkBenchError("请在 Mac 上打开 SpeakNote（随口记），进入应用内的「设置 → 通知」并开启通知，然后再请我设置提醒。")
     }
   }
   func reconcile(_ plan: [LocalReminder], force: Bool = false) async {

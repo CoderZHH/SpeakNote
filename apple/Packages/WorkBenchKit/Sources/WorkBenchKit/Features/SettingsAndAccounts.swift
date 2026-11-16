@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
+import UserNotifications
+#endif
 
 struct JSONDocument: FileDocument {
   static var readableContentTypes: [UTType] { [.json] }
@@ -47,6 +50,9 @@ struct SettingsView: View {
         }
       #endif
       if session.role == .workbench {
+        #if os(macOS)
+          ReminderNotificationSettings()
+        #endif
         Section("备份与数据") {
           #if os(iOS)
             Toggle("iCloud 云盘历史备份", isOn: $driveEnabled).onChange(of: driveEnabled) { _, value in
@@ -152,6 +158,72 @@ struct SettingsView: View {
     }
   }
 }
+#if os(macOS)
+private struct ReminderNotificationSettings: View {
+  @Environment(AppSession.self) private var session
+  @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var phase
+  @State private var status: UNAuthorizationStatus?
+  @State private var requesting = false
+  @State private var issue: String?
+
+  var body: some View {
+    Section {
+      LabeledContent("任务和课程提醒", value: statusLabel)
+      if status == .notDetermined {
+        Button("开启通知", systemImage: "bell") {
+          Task {
+            requesting = true
+            defer { requesting = false }
+            issue = nil
+            do {
+              try await session.requestTaskReminderAuthorization()
+              await session.refreshWorkspaceReminders(force: true)
+            } catch {
+              issue = error.localizedDescription
+            }
+            await refreshStatus()
+          }
+        }.disabled(requesting)
+      } else if status != nil {
+        Button("打开系统通知设置", systemImage: "gearshape") {
+          if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+            openURL(url)
+          }
+        }
+      }
+      if status == .denied {
+        Text("在 macOS 的「系统设置 → 通知」里找到 SpeakNote（随口记），打开「允许通知」。")
+          .font(.footnote).foregroundStyle(.secondary)
+      } else if let issue {
+        Text(issue).font(.footnote).foregroundStyle(.secondary)
+      }
+    } header: {
+      Text("通知")
+    } footer: {
+      Text("系统通知用于任务和课程提醒。接收微信消息时，请保持 SpeakNote 和微信助手运行。")
+    }
+    .task(id: phase) {
+      if phase == .active { await refreshStatus() }
+    }
+  }
+
+  private var statusLabel: String {
+    switch status {
+    case .some(.authorized): "已开启"
+    case .some(.provisional): "静默通知"
+    case .some(.notDetermined): "未授权"
+    case .none: "正在读取"
+    default: "未开启"
+    }
+  }
+
+  private func refreshStatus() async {
+    status = await SystemReminderNotifications().authorizationStatus()
+  }
+}
+#endif
+
 struct AccountsView: View {
   @Environment(AppSession.self) private var session
   @State private var adding = false
