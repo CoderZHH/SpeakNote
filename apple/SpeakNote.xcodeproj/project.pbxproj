@@ -9,9 +9,11 @@
 /* Begin PBXBuildFile section */
 		0B3758ACCD715C1F66A4B032 /* WorkBenchKit in Frameworks */ = {isa = PBXBuildFile; productRef = 75472AF24969EE2429F1A0AD /* WorkBenchKit */; };
 		0C27A343EBAC521DE9DBE21C /* Mac.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 613B3FA6ED7D55A56F25C7AB /* Mac.xcassets */; };
+		0F788417D9248A14E20C32B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 66352738AD02228C5E20F811 /* Sparkle */; };
 		21DC6AD3D98ADF1D97FF18CF /* WorkBenchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401319B6409A630D6D799EA6 /* WorkBenchApp.swift */; };
 		4FC0761814C9DF99E8359F6D /* WorkBenchKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21764485A0DB9D1CE834DD76 /* WorkBenchKit */; };
 		527473DB1A62E4CE54206C5D /* iOS.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA0CDAAA57FF03B94E0488C6 /* iOS.xcassets */; };
+		6B78D2058B2C1C4EBD799639 /* Sparkle-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 17D690E91192D0196939AFA1 /* Sparkle-LICENSE.txt */; };
 		759381C54EB45B70E1E207A1 /* WorkBenchActivity in Frameworks */ = {isa = PBXBuildFile; productRef = 6C9668D2F50DDCFE376892AF /* WorkBenchActivity */; };
 		7A99838BB3E816B7500F447E /* WorkBenchFocusActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD64E8EFCCA952612841368 /* WorkBenchFocusActivity.swift */; };
 		9048DE85B8F5A38B6372125E /* WorkBenchFocusActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 00815F17144F5C07BBC519F4 /* WorkBenchFocusActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -64,6 +66,7 @@
 /* Begin PBXFileReference section */
 		00815F17144F5C07BBC519F4 /* WorkBenchFocusActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = WorkBenchFocusActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		036A5F9B82FB12B5A40DFD3D /* PhotoAssistant.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhotoAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		17D690E91192D0196939AFA1 /* Sparkle-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Sparkle-LICENSE.txt"; sourceTree = "<group>"; };
 		35D2EA471793776D240EF94E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		401319B6409A630D6D799EA6 /* WorkBenchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkBenchApp.swift; sourceTree = "<group>"; };
 		613B3FA6ED7D55A56F25C7AB /* Mac.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Mac.xcassets; sourceTree = "<group>"; };
@@ -91,6 +94,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4FC0761814C9DF99E8359F6D /* WorkBenchKit in Frameworks */,
+				0F788417D9248A14E20C32B6 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +142,7 @@
 			children = (
 				BA0CDAAA57FF03B94E0488C6 /* iOS.xcassets */,
 				613B3FA6ED7D55A56F25C7AB /* Mac.xcassets */,
+				17D690E91192D0196939AFA1 /* Sparkle-LICENSE.txt */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -264,6 +269,7 @@
 			name = WorkBenchMac;
 			packageProductDependencies = (
 				21764485A0DB9D1CE834DD76 /* WorkBenchKit */,
+				66352738AD02228C5E20F811 /* Sparkle */,
 			);
 			productName = WorkBenchMac;
 			productReference = E36A2D0B274EBBA5E0122DC8 /* SpeakNote.app */;
@@ -329,6 +335,7 @@
 			mainGroup = FC6E132D7A6C7E671CCBBD64;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				74A2ACEA3615BD62F447BBB6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				93AA76B2FC7D3307B8C0BE25 /* XCLocalSwiftPackageReference "Packages/WorkBenchKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -360,6 +367,7 @@
 			files = (
 				D7D61B7E83C91E5F1FDBC72A /* InfoPlist.strings in Resources */,
 				0C27A343EBAC521DE9DBE21C /* Mac.xcassets in Resources */,
+				6B78D2058B2C1C4EBD799639 /* Sparkle-LICENSE.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -501,7 +509,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -518,7 +526,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.2.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -565,7 +573,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -588,7 +596,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.2.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -840,6 +848,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		74A2ACEA3615BD62F447BBB6 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		21764485A0DB9D1CE834DD76 /* WorkBenchKit */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -848,6 +867,11 @@
 		23B6C5855854410B1BD94154 /* WorkBenchKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = WorkBenchKit;
+		};
+		66352738AD02228C5E20F811 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 74A2ACEA3615BD62F447BBB6 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		6C9668D2F50DDCFE376892AF /* WorkBenchActivity */ = {
 			isa = XCSwiftPackageProductDependency;

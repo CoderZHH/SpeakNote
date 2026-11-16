@@ -29,5 +29,11 @@
 	<string>public.app-category.productivity</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>选择截图或备注附件</string>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/CoderZHH/SpeakNote-Releases/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>yPsdQMCZPiEudiGTcTaYsa+ZjRBa/0UAGXGS1H2Ncyo=</string>
 </dict>
 </plist>

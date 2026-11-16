@@ -6,14 +6,17 @@ options:
     iOS: '26.0'
     macOS: '26.0'
 packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: '2.9.6'
   WorkBenchKit:
     path: Packages/WorkBenchKit
 settings:
   base:
     SWIFT_VERSION: '6.2'
     CODE_SIGN_STYLE: Automatic
-    CURRENT_PROJECT_VERSION: 5
-    MARKETING_VERSION: 0.2.4
+    CURRENT_PROJECT_VERSION: 6
+    MARKETING_VERSION: 0.2.5
     GENERATE_INFOPLIST_FILE: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -49,9 +52,15 @@ targets:
         CFBundleDisplayName: SpeakNote
         CFBundleDevelopmentRegion: en
         LSApplicationCategoryType: public.app-category.productivity
+        SUFeedURL: https://raw.githubusercontent.com/CoderZHH/SpeakNote-Releases/main/appcast.xml
+        SUPublicEDKey: 'yPsdQMCZPiEudiGTcTaYsa+ZjRBa/0UAGXGS1H2Ncyo='
+        SUEnableAutomaticChecks: false
+    dependencies:
+      - package: Sparkle
     sources:
       - path: Resources/Mac.xcassets
       - path: Resources/MacLocalization
+      - path: Resources/Sparkle-LICENSE.txt
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.coderzhh.workbenchpreview

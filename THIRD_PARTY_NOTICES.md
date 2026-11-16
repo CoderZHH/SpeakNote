@@ -12,6 +12,12 @@ The Mac Chrome helper embeds an official standalone Node.js runtime. Its complet
 
 Source: https://github.com/nodejs/node
 
+## Sparkle
+
+Sparkle 2.9.6 provides in-app updates for the macOS version. The upstream license is bundled as `Sparkle-LICENSE.txt`.
+
+Source: https://github.com/sparkle-project/Sparkle/tree/2.9.6
+
 ## SQLite
 
 The native applications use the operating system's SQLite3 library. SQLite is in the public domain. No bundled Rust SQLite library is distributed.
