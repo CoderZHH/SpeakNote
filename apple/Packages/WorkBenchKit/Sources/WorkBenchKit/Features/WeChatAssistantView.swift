@@ -6,6 +6,7 @@ struct WeChatAssistantView: View {
   @Environment(\.dismiss) private var dismiss
   let isOnboarding: Bool
   var showTask: (String) -> Void
+  var skipOnboarding: (() -> Void)? = nil
   @State private var started = false
   @State private var editingKey = false
   @State private var trying = false
@@ -221,7 +222,9 @@ struct WeChatAssistantView: View {
 
   private var footer: some View {
     HStack {
-      if !isOnboarding {
+      if let skipOnboarding {
+        Button("稍后连接", action: skipOnboarding).keyboardShortcut(.cancelAction)
+      } else if !isOnboarding {
         Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
       }
       Spacer()

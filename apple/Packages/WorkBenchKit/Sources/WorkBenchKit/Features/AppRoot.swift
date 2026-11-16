@@ -131,19 +131,27 @@ public struct WorkBenchRoot: View {
 
     // The assistant can finish setup using the local store before the workspace is visible.
     private var onboardingHost: some View {
-      Color(nsColor: .windowBackgroundColor)
-        .accessibilityHidden(true)
-        .sheet(isPresented: $presentingOnboarding, onDismiss: {
-          enteredWorkspace = true
-          didFinishWeChatSetup = true
-        }) {
-          WeChatAssistantView(isOnboarding: true, showTask: { _ in })
+      VStack(spacing: WorkbenchDesign.Space.section) {
+        Text("SpeakNote · 随口记").font(.title.bold())
+        Button("进入工作台") { finishOnboarding() }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .sheet(isPresented: $presentingOnboarding, onDismiss: finishOnboarding) {
+          WeChatAssistantView(
+            isOnboarding: true, showTask: { _ in },
+            skipOnboarding: { presentingOnboarding = false }
+          )
             .environment(session)
             .interactiveDismissDisabled()
             .onChange(of: canEnterWorkspace, initial: true) { _, configured in
               if configured { presentingOnboarding = false }
             }
         }
+    }
+
+    private func finishOnboarding() {
+      enteredWorkspace = true
+      didFinishWeChatSetup = true
     }
 
     private var macWorkspace: some View {
