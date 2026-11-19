@@ -113,22 +113,33 @@ extension WorkspaceEngine {
   }
 
   static func canCopyConflict(_ entity: WorkspaceEntity) -> Bool {
-    [.tasks, .notes, .projects, .learning, .reflections, .accounts, .courses, .semesters, .courseMeetings, .lessons].contains(entity)
+    [
+      .spaces, .collections, .tasks, .notes, .projects, .learning, .reflections, .accounts,
+      .courses, .semesters, .courseMeetings, .lessons,
+    ].contains(entity)
   }
 
   private func validateConflict(_ entity: WorkspaceEntity, fields: inout Record, creating: Bool) throws {
-    for (field, parent) in [("project_id", "projects"), ("learning_id", "learning"),
+    for (field, parent) in [
+      ("space_id", "spaces"), ("collection_id", "collections"),
+      ("project_id", "projects"), ("learning_id", "learning"),
       ("course_id", "courses"), ("source_note_id", "notes"), ("semester_id", "semesters"),
       ("task_id", "tasks"), ("note_id", "notes"), ("account_id", "accounts"),
-      ("focus_id", "focus_sessions"), ("parent_id", "lessons")]
+      ("focus_id", "focus_sessions"), ("parent_id", "lessons"),
+    ]
     where try !fields[value: field].isNull && db.record(parent, id: fields.text(field)).isEmpty {
-      let required = entity == .attachments || (entity == .lessons && field == "learning_id")
+      let required =
+        entity == .attachments || (entity == .collections && field == "space_id")
+        || (entity == .lessons && (field == "learning_id" || field == "collection_id"))
         || (entity == .courseMeetings && field == "course_id")
         || (entity == .focusIntervals && field == "focus_id") || (entity == .metrics && field == "account_id")
       try require(!required, "请先恢复关联的记录，再选择这份版本；保留内容仍在这里。")
       fields[field] = .null
     }
-    if [.tasks, .notes, .projects, .learning, .reflections, .accounts, .courses, .semesters, .courseMeetings].contains(entity) {
+    if [
+      .spaces, .collections, .tasks, .notes, .projects, .learning, .reflections, .accounts,
+      .courses, .semesters, .courseMeetings,
+    ].contains(entity) {
       fields = try validate(entity, fields, creating: creating)
     }
     if entity == .attachments {

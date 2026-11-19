@@ -1,69 +1,162 @@
 import SwiftUI
+#if os(macOS)
+  import AppKit
+#elseif os(iOS)
+  import UIKit
+#endif
 
 struct ThoughtRoute: Hashable, Identifiable {
   let id: String
   var initialTags: [String]? = nil
 }
+
+private func thoughtBodyExcerpt(_ content: String) -> String {
+  let lines = content.components(separatedBy: .newlines)
+  guard lines.count > 1 else { return "" }
+  return lines.dropFirst()
+    .map { $0.trimmingCharacters(in: .whitespaces) }
+    .filter { !$0.isEmpty }
+    .prefix(3)
+    .joined(separator: " ")
+}
+
+private func thoughtCharCount(_ content: String) -> Int {
+  content.unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) }.count
+}
+
 struct ThoughtSummary: View {
   let item: WorkspaceItem
+  var liveText: String? = nil
+  var liveTags: [String]? = nil
+
+  private var rawContent: String { liveText ?? item[.content].string }
+  private var resolvedTags: [String] { liveTags ?? thoughtTags(item) }
+
   var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: WorkbenchDesign.Space.small) {
-      let title = thoughtTitle(item[.content].string)
-      let tags = thoughtTags(item).map { "#" + $0 }.joined(separator: " ")
-      Text(
-        "\(Text(title).font(.body.weight(.medium)))\(Text(tags.isEmpty ? "" : "  " + tags).font(.caption).foregroundColor(.secondary))"
-      ).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-      Text(String(item[.day].string.suffix(5)).replacingOccurrences(of: "-", with: "/"))
-        .font(.caption.monospacedDigit()).foregroundStyle(.tertiary).fixedSize()
-    }.padding(.vertical, WorkbenchDesign.Space.small).contentShape(Rectangle())
+    let title = thoughtTitle(rawContent)
+    let excerpt = thoughtBodyExcerpt(rawContent)
+    let shortDate = String(item[.day].string.suffix(5)).replacingOccurrences(of: "-", with: "/")
+
+    VStack(alignment: .leading, spacing: 5) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(title)
+          .font(.system(size: 14.5, weight: .medium))
+          .foregroundStyle(.primary)
+          .lineLimit(1)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        Text(shortDate)
+          .font(.system(size: 11.5, design: .rounded).monospacedDigit())
+          .foregroundStyle(.tertiary)
+          .fixedSize()
+      }
+
+      if !excerpt.isEmpty {
+        Text(excerpt)
+          .font(.system(size: 13))
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .lineSpacing(2.5)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      if !resolvedTags.isEmpty {
+        HStack(spacing: 5) {
+          ForEach(resolvedTags.prefix(4), id: \.self) { tag in
+            Text("#" + tag)
+              .font(.system(size: 11))
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(Color.primary.opacity(0.045), in: .capsule)
+          }
+        }
+        .padding(.top, 1)
+      }
+    }
+    .padding(.vertical, 6)
+    .contentShape(Rectangle())
   }
 }
+
 struct ThoughtsView: View {
   @Environment(AppSession.self) private var session
   @State private var tag = "全部"
   @State private var managingTags = false
   @State private var tagToRemove: String?
+  @State private var thoughtToDelete: WorkspaceItem?
   @State private var search = ""
   @State private var selected: String?
+  @State private var hoveredID: String?
   @State private var composition: ThoughtRoute?
   @State private var newRoute: ThoughtRoute?
+
   private var allThoughts: [WorkspaceItem] {
     let saved = session.workspace?.snapshot[.reflections] ?? []
     let ids = Set(saved.map(\.id))
     return saved + session.thoughtEditing.pendingItems.filter { !ids.contains($0.id) }
   }
+
+  private func effectiveText(for item: WorkspaceItem) -> String {
+    session.thoughtEditing.buffers[item.id]?.text ?? item[.content].string
+  }
+
+  private func effectiveTags(for item: WorkspaceItem) -> [String] {
+    session.thoughtEditing.buffers[item.id]?.tags ?? thoughtTags(item)
+  }
+
   private var tags: [String] {
-    ["全部"] + Set(allThoughts.flatMap { item in
-      session.thoughtEditing.buffers[item.id]?.tags ?? thoughtTags(item)
-    }).subtracting(["全部"]).sorted()
+    ["全部"] + Set(allThoughts.flatMap { effectiveTags(for: $0) }).subtracting(["全部"]).sorted()
   }
+
   private var thoughts: [WorkspaceItem] {
-    allThoughts.filter {
-      (tag == "全部" || thoughtTags($0).contains(tag))
-        && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)
-          || thoughtTags($0).contains { $0.localizedCaseInsensitiveContains(search) })
-    }.sorted { ($0[.day].string, $0.createdAt, $0.id) > ($1[.day].string, $1.createdAt, $1.id) }
+    allThoughts.filter { item in
+      let itemTags = effectiveTags(for: item)
+      let content = effectiveText(for: item)
+      let matchesTag = (tag == "全部" || itemTags.contains(tag))
+      let matchesSearch =
+        search.isEmpty
+        || content.localizedCaseInsensitiveContains(search)
+        || itemTags.contains { $0.localizedCaseInsensitiveContains(search) }
+      return matchesTag && matchesSearch
+    }.sorted {
+      let d0 = session.thoughtEditing.buffers[$0.id]?.day ?? $0[.day].string
+      let d1 = session.thoughtEditing.buffers[$1.id]?.day ?? $1[.day].string
+      return (d0, $0.createdAt, $0.id) > (d1, $1.createdAt, $1.id)
+    }
   }
+
   var body: some View {
     Group {
       #if os(macOS)
         GeometryReader { geometry in
-          if geometry.size.width >= 740 {
-            HSplitView {
-              browser(selection: true).frame(minWidth: 280, idealWidth: 300, maxWidth: 320)
+          if geometry.size.width >= 720 {
+            HStack(spacing: 0) {
+              browser(selection: true)
+                .frame(width: min(310, max(268, geometry.size.width * 0.30)))
+
+              Rectangle()
+                .fill(WorkbenchDesign.line)
+                .frame(width: 1)
+
               Group {
-                if let selected,
-                  let route = editorRoute(selected)
-                {
-                  ThoughtEditor(id: route.id, initialTags: route.initialTags).id(route.id)
+                if let selected, let route = editorRoute(selected) {
+                  ThoughtEditor(id: route.id, initialTags: route.initialTags)
+                    .id(route.id)
                 } else {
-                  ContentUnavailableView("选择一篇思考", systemImage: "text.bubble")
+                  EmptyState(
+                    title: allThoughts.isEmpty ? "记录你的第一篇思考" : "选择一篇思考",
+                    symbol: "square.and.pencil",
+                    detail: "首行自动作为标题，支持人文、书卷衬线与圆体排版，输入即自动保存。"
+                  )
                 }
-              }.frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+              }
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .toolbar { newButton(inline: true) }
           } else {
-            browser(selection: false).toolbar { newButton(inline: false) }
+            browser(selection: false)
+              .toolbar { newButton(inline: false) }
           }
         }
       #else
@@ -72,9 +165,13 @@ struct ThoughtsView: View {
         }
       #endif
     }
-    .alert("删除标签？", isPresented: Binding(
-      get: { tagToRemove != nil }, set: { if !$0 { tagToRemove = nil } }
-    ), presenting: tagToRemove) { name in
+    .alert(
+      "删除标签？",
+      isPresented: Binding(
+        get: { tagToRemove != nil }, set: { if !$0 { tagToRemove = nil } }
+      ),
+      presenting: tagToRemove
+    ) { name in
       Button("删除", role: .destructive) {
         session.run {
           guard let store = session.workspace else { return }
@@ -85,6 +182,29 @@ struct ThoughtsView: View {
       Button("取消", role: .cancel) {}
     } message: { name in
       Text("「\(name)」将从所有思考中移除，正文会保留。")
+    }
+    .confirmationDialog(
+      "删除这篇思考？",
+      isPresented: Binding(
+        get: { thoughtToDelete != nil }, set: { if !$0 { thoughtToDelete = nil } }
+      ),
+      titleVisibility: .visible
+    ) {
+      if let target = thoughtToDelete {
+        Button("删除", role: .destructive) {
+          let targetID = target.id
+          thoughtToDelete = nil
+          session.run {
+            guard let store = session.workspace else { return }
+            await session.thoughtEditing.flush(id: targetID, store: store)
+            if store.snapshot.item(.reflections, targetID) != nil {
+              _ = try await store.perform(.delete(.reflections, id: targetID))
+            }
+            session.thoughtEditing.remove(targetID)
+            if selected == targetID { selected = thoughts.first { $0.id != targetID }?.id }
+          }
+        }
+      }
     }
     .onChange(of: tags) { _, available in
       if !available.contains(tag) { tag = "全部" }
@@ -105,13 +225,15 @@ struct ThoughtsView: View {
       }
     #endif
   }
+
   @ToolbarContentBuilder private func newButton(inline: Bool) -> some ToolbarContent {
     ToolbarItem(placement: .primaryAction) {
-      Button("记一点", systemImage: "square.and.pencil") {
+      Button("新建思考", systemImage: "plus") {
         beginNew(inline: inline)
       }.accessibilityIdentifier("thought.new")
     }
   }
+
   private func beginNew(inline: Bool) {
     let route = ThoughtRoute(
       id: UUID().uuidString.lowercased(),
@@ -124,62 +246,144 @@ struct ThoughtsView: View {
       newRoute = route
     }
   }
+
   private func editorRoute(_ id: String) -> ThoughtRoute? {
     if composition?.id == id { return composition }
     if allThoughts.contains(where: { $0.id == id }) { return ThoughtRoute(id: id) }
     return nil
   }
+
   private var tagManagement: some View {
-      VStack(alignment: .leading, spacing: WorkbenchDesign.Space.medium) {
-        Text("管理标签").font(.headline)
-        if tags.count == 1 {
-          Text("还没有标签").foregroundStyle(.secondary)
-        } else {
-          ScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchDesign.Space.small) {
-              ForEach(tags.dropFirst(), id: \.self) { name in
-                HStack {
-                  Text(name)
-                  Spacer()
-                  Button("删除标签", systemImage: "trash", role: .destructive) {
-                    managingTags = false
-                    tagToRemove = name
-                  }
-                  .labelStyle(.iconOnly)
-                  .accessibilityLabel("删除标签 " + name)
+    VStack(alignment: .leading, spacing: WorkbenchDesign.Space.medium) {
+      Text("管理标签").font(.system(size: 14, weight: .medium))
+      if tags.count == 1 {
+        Text("还没有标签").font(.subheadline).foregroundStyle(.secondary)
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: WorkbenchDesign.Space.small) {
+            ForEach(tags.dropFirst(), id: \.self) { name in
+              HStack {
+                Text("#" + name).font(.subheadline)
+                Spacer()
+                Button("删除标签", systemImage: "trash", role: .destructive) {
+                  managingTags = false
+                  tagToRemove = name
                 }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("删除标签 " + name)
               }
+              .padding(.vertical, 2)
             }
-          }.frame(maxHeight: WorkbenchDesign.ThoughtLayout.tagListHeight)
-        }
+          }
+        }.frame(maxHeight: WorkbenchDesign.ThoughtLayout.tagListHeight)
       }
-      .padding(WorkbenchDesign.Space.section)
-      .frame(width: WorkbenchDesign.ThoughtLayout.tagPickerWidth)
     }
+    .padding(WorkbenchDesign.Space.section)
+    .frame(width: WorkbenchDesign.ThoughtLayout.tagPickerWidth)
+  }
 
   private func browser(selection: Bool) -> some View {
     VStack(spacing: 0) {
       WorkspaceMasterHeader(prompt: "搜索思考", search: $search) {
         HStack(spacing: WorkbenchDesign.Space.small) {
           ScrollView(.horizontal) {
-            WorkspaceFilters(values: tags, selection: $tag, title: { $0 })
+            WorkspaceFilters(values: tags, selection: $tag, title: { $0 == "全部" ? "全部" : "#" + $0 })
           }.scrollIndicators(.hidden)
-          Button("管理标签", systemImage: "tag") { managingTags = true }
-            .labelStyle(.iconOnly).buttonStyle(.borderless).help("管理标签")
-            .popover(isPresented: $managingTags) { tagManagement }
-        }
-      }
-      WorkspaceList(selection: selection ? $selected : nil, inset: WorkbenchDesign.masterInset) {
-        ForEach(thoughts) { item in
-          if selection {
-            ThoughtSummary(item: item).tag(item.id)
-          } else {
-            NavigationLink(value: ThoughtRoute(id: item.id)) { ThoughtSummary(item: item) }
+          if tags.count > 1 {
+            Button("管理标签", systemImage: "slider.horizontal.3") { managingTags = true }
+              .labelStyle(.iconOnly)
+              .buttonStyle(.plain)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .help("管理标签")
+              .popover(isPresented: $managingTags) { tagManagement }
           }
         }
       }
-    }.background(WorkbenchDesign.canvas)
+
+      if thoughts.isEmpty {
+        EmptyState(
+          title: !search.isEmpty ? "没有匹配的思考" : "暂无思考记录",
+          symbol: !search.isEmpty ? "magnifyingglass" : "text.bubble",
+          detail: !search.isEmpty ? "换个关键词试试" : "点击右上角「+」记录一段深度想法"
+        )
+      } else {
+        ScrollView {
+          LazyVStack(spacing: selection ? 4 : 0) {
+            ForEach(thoughts) { item in
+              if selection {
+                desktopSummaryCard(item)
+              } else {
+                VStack(spacing: 0) {
+                  NavigationLink(value: ThoughtRoute(id: item.id)) {
+                    ThoughtSummary(
+                      item: item,
+                      liveText: effectiveText(for: item),
+                      liveTags: effectiveTags(for: item)
+                    )
+                    .padding(.vertical, 4)
+                  }
+                  .buttonStyle(.plain)
+                  Rectangle().fill(WorkbenchDesign.line).frame(height: 0.5)
+                }
+              }
+            }
+          }
+          .padding(.horizontal, selection ? 10 : WorkbenchDesign.masterInset)
+          .padding(.bottom, WorkbenchDesign.Space.section)
+        }
+      }
+    }
+    .background(WorkbenchDesign.canvas)
   }
+
+  private func desktopSummaryCard(_ item: WorkspaceItem) -> some View {
+    let isSelected = selected == item.id
+    let isHovered = hoveredID == item.id
+    return Button {
+      selected = item.id
+    } label: {
+      ThoughtSummary(
+        item: item,
+        liveText: effectiveText(for: item),
+        liveTags: effectiveTags(for: item)
+      )
+      .padding(.horizontal, 11)
+      .padding(.vertical, 4)
+      .background(
+        isSelected
+          ? WorkbenchDesign.selectionBackground
+          : (isHovered ? Color.primary.opacity(0.035) : .clear),
+        in: .rect(cornerRadius: 10, style: .continuous)
+      )
+    }
+    .buttonStyle(.plain)
+    #if os(macOS)
+      .onHover { hovering in
+        hoveredID = hovering ? item.id : (hoveredID == item.id ? nil : hoveredID)
+      }
+    #endif
+    .contextMenu {
+      Button("复制全文", systemImage: "doc.on.doc") {
+        copyPlainText(effectiveText(for: item))
+      }
+      Divider()
+      Button("删除思考…", systemImage: "trash", role: .destructive) {
+        thoughtToDelete = item
+      }
+    }
+  }
+}
+
+private func copyPlainText(_ string: String) {
+  #if os(macOS)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(string, forType: .string)
+  #elseif os(iOS)
+    UIPasteboard.general.string = string
+  #endif
 }
 
 /// The Today entry uses the same full editor. Empty dismissal leaves no record.
@@ -217,24 +421,58 @@ struct ThoughtEditor: View {
   var initialTags: [String]? = nil
   @Environment(AppSession.self) private var session
   @Environment(\.dismiss) private var dismiss
+  @AppStorage("thoughtFontStyle") private var fontStyleRaw = ThoughtFontStyle.sans.rawValue
+  @AppStorage("thoughtFontScale") private var fontScaleRaw = ThoughtFontScale.standard.rawValue
   @State private var deletion = false
   @State private var deleting = false
   @State private var focused = false
   @State private var reviewing = false
+  @State private var showingTypography = false
+  @State private var showingDatePicker = false
+  @State private var copiedToast = false
+
   private var item: WorkspaceItem? { session.workspace?.snapshot.item(.reflections, id) }
   private var buffer: ThoughtEditing.Buffer? { session.thoughtEditing.buffers[id] }
+
+  private var fontStyle: ThoughtFontStyle {
+    ThoughtFontStyle(rawValue: fontStyleRaw) ?? .sans
+  }
+
+  private var fontScale: ThoughtFontScale {
+    ThoughtFontScale(rawValue: fontScaleRaw) ?? .standard
+  }
+
+  private var currentText: String {
+    buffer?.text ?? item?[.content].string ?? ""
+  }
+
+  private var currentDayString: String {
+    let raw = buffer?.day ?? item?[.day].string ?? ""
+    return raw.isEmpty ? Clock.day() : raw
+  }
+
+  private var currentDate: Date {
+    (try? Clock.parse(currentDayString + "T12:00:00+08:00")) ?? .now
+  }
+
   var body: some View {
     Group {
       if let store = session.workspace, item != nil || buffer != nil || initialTags != nil {
         VStack(spacing: 0) {
+          editorialTopBar(store: store)
+            .padding(.horizontal, WorkbenchDesign.pageInset)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
+
           ThoughtTagPicker(
             tags: buffer?.tags ?? item.map(thoughtTags) ?? initialTags ?? [],
             suggestions: allTags
           ) { tags in
             try session.thoughtEditing.stageTags(id: id, tags: tags, store: store)
-          }.padding(.horizontal, WorkbenchDesign.pageInset)
-            .padding(.top, WorkbenchDesign.Space.medium)
-            .padding(.bottom, WorkbenchDesign.Space.small)
+          }
+          .padding(.horizontal, WorkbenchDesign.pageInset)
+          .padding(.bottom, 8)
+
           if let error = buffer?.error {
             HStack(alignment: .top, spacing: WorkbenchDesign.Space.small) {
               Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
@@ -248,96 +486,272 @@ struct ThoughtEditor: View {
                   Task { await session.thoughtEditing.flush(id: id, store: store) }
                 }.buttonStyle(.borderless)
               }
-            }.padding(.horizontal, WorkbenchDesign.pageInset)
-              .padding(.vertical, WorkbenchDesign.Space.small)
-              .accessibilityIdentifier("thought.save.error")
+            }
+            .padding(.horizontal, WorkbenchDesign.pageInset)
+            .padding(.vertical, WorkbenchDesign.Space.small)
+            .accessibilityIdentifier("thought.save.error")
           }
+
           ZStack(alignment: .topLeading) {
             ThoughtTextEditor(
               text: Binding(
-                get: { buffer?.text ?? item?[.content].string ?? "" },
-                set: { session.thoughtEditing.stage(id: id, text: $0, store: store) }),
-              focused: $focused
+                get: { currentText },
+                set: { session.thoughtEditing.stage(id: id, text: $0, store: store) }
+              ),
+              focused: $focused,
+              fontStyle: fontStyle,
+              fontScale: fontScale
             )
             .accessibilityIdentifier("thought.content")
-            if (buffer?.text ?? item?[.content].string ?? "").isEmpty {
-              Text("标题").font(.title2.bold()).foregroundStyle(.tertiary)
-                .padding(WorkbenchDesign.Space.small).allowsHitTesting(false)
-            }
-          }.padding(.horizontal, WorkbenchDesign.pageInset)
-            .padding(.bottom, WorkbenchDesign.pageInset)
-        }.readablePage().background(WorkbenchDesign.canvas).disabled(deleting)
 
+            if currentText.isEmpty {
+              Text("写下此刻的想法…")
+                .font(fontStyle.placeholderTitleFont(scale: fontScale))
+                .foregroundStyle(.quaternary)
+                .padding(.top, 10)
+                .allowsHitTesting(false)
+            }
+          }
+          .padding(.horizontal, WorkbenchDesign.pageInset)
+          .padding(.bottom, WorkbenchDesign.pageInset)
+        }
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WorkbenchDesign.canvas)
+        .disabled(deleting)
       } else {
-        ContentUnavailableView("思考已删除", systemImage: "text.bubble")
+        EmptyState(title: "思考已删除", symbol: "text.bubble", detail: "可从左侧选择其他思考或新建一篇。")
       }
-    }.navigationTitle("").phoneDetailNavigation()
-      .onAppear {
-        if let item {
-          session.thoughtEditing.begin(item)
-        } else if let initialTags {
-          session.thoughtEditing.beginNew(id: id, tags: initialTags)
+    }
+    .navigationTitle("")
+    .phoneDetailNavigation()
+    .onAppear {
+      if let item {
+        session.thoughtEditing.begin(item)
+      } else if let initialTags {
+        session.thoughtEditing.beginNew(id: id, tags: initialTags)
+      }
+      if initialTags != nil { focused = true }
+    }
+    .onChange(of: item) { _, value in
+      if let value { session.thoughtEditing.begin(value) }
+    }
+    .onChange(of: buffer?.conflict) { _, version in
+      if version == nil { reviewing = false }
+    }
+    .sheet(isPresented: $reviewing) {
+      if let store = session.workspace, let buffer, let saved = buffer.conflict {
+        ThoughtConflictReview(
+          saved: saved, draft: .init(text: buffer.text, tags: buffer.tags),
+          error: buffer.error
+        ) { version, keepDraft in
+          await session.thoughtEditing.resolve(
+            id: id, reviewed: version, keepDraft: keepDraft, store: store)
         }
-        if initialTags != nil { focused = true }
       }
-      .onChange(of: item) { _, value in
-        if let value { session.thoughtEditing.begin(value) }
+    }
+    .onDisappear {
+      guard let store = session.workspace else { return }
+      Task {
+        await session.thoughtEditing.flush(id: id, store: store)
+        if let buffer = session.thoughtEditing.buffers[id], !buffer.persisted,
+          buffer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+          session.thoughtEditing.remove(id)
+        }
       }
-      .onChange(of: buffer?.conflict) { _, version in
-        if version == nil { reviewing = false }
-      }
-      .sheet(isPresented: $reviewing) {
-        if let store = session.workspace, let buffer, let saved = buffer.conflict {
-          ThoughtConflictReview(
-            saved: saved, draft: .init(text: buffer.text, tags: buffer.tags),
-            error: buffer.error
-          ) { version, keepDraft in
-            await session.thoughtEditing.resolve(
-              id: id, reviewed: version, keepDraft: keepDraft, store: store)
+    }
+    .toolbar {
+      #if os(iOS)
+        if focused {
+          ToolbarItem(placement: .confirmationAction) {
+            Button("完成") { focused = false }.accessibilityIdentifier("keyboard.done")
           }
         }
-      }
-      .onDisappear {
+      #endif
+    }
+    .confirmationDialog("删除这篇思考？", isPresented: $deletion) {
+      Button("删除", role: .destructive) {
         guard let store = session.workspace else { return }
-        Task {
+        deleting = true
+        session.run {
+          defer { deleting = false }
           await session.thoughtEditing.flush(id: id, store: store)
-          if let buffer = session.thoughtEditing.buffers[id], !buffer.persisted,
-            buffer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          {
-            session.thoughtEditing.remove(id)
+          if store.snapshot.item(.reflections, id) != nil {
+            _ = try await store.perform(.delete(.reflections, id: id))
           }
+          session.thoughtEditing.remove(id)
+          dismiss()
         }
       }
-      .toolbar {
-        #if os(iOS)
-          if focused {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("完成") { focused = false }.accessibilityIdentifier("keyboard.done")
-            }
-          }
-        #endif
-        ToolbarItem(placement: .secondaryAction) {
-          if item != nil || !(buffer?.text ?? "").isEmpty {
-            Button("删除", systemImage: "trash", role: .destructive) { deletion = true }
-          }
-        }
-      }
-      .confirmationDialog("删除这篇思考？", isPresented: $deletion) {
-        Button("删除", role: .destructive) {
-          guard let store = session.workspace else { return }
-          deleting = true
-          session.run {
-            defer { deleting = false }
-            await session.thoughtEditing.flush(id: id, store: store)
-            if store.snapshot.item(.reflections, id) != nil {
-              _ = try await store.perform(.delete(.reflections, id: id))
-            }
-            session.thoughtEditing.remove(id)
-            dismiss()
-          }
-        }
-      }
+    }
   }
+
+  private func editorialTopBar(store: WorkspaceStore) -> some View {
+    let chars = thoughtCharCount(currentText)
+    return HStack(spacing: 8) {
+      Button {
+        showingDatePicker.toggle()
+      } label: {
+        Text(currentDate, format: .dateTime.year().month().day().weekday(.abbreviated))
+          .font(.system(size: 12, design: .rounded))
+          .foregroundStyle(.secondary)
+      }
+      .buttonStyle(.plain)
+      .help("修改这篇思考的日期")
+      .popover(isPresented: $showingDatePicker) {
+        DatePicker(
+          "思考日期",
+          selection: Binding(
+            get: { currentDate },
+            set: { picked in
+              session.thoughtEditing.stageDay(id: id, day: Clock.day(picked), store: store)
+              showingDatePicker = false
+            }
+          ),
+          displayedComponents: .date
+        )
+        .datePickerStyle(.graphical)
+        .labelsHidden()
+        .padding(10)
+        .frame(width: 280)
+      }
+
+      if chars > 0 {
+        Text("·")
+          .font(.caption)
+          .foregroundStyle(.quaternary)
+        Text("\(chars) 字")
+          .font(.system(size: 12, design: .rounded).monospacedDigit())
+          .foregroundStyle(.tertiary)
+      }
+
+      if buffer?.saving == true {
+        Text("保存中…")
+          .font(.system(size: 11))
+          .foregroundStyle(.quaternary)
+      } else if copiedToast {
+        Text("已复制")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.green)
+      }
+
+      Spacer(minLength: 0)
+
+      Button {
+        showingTypography.toggle()
+      } label: {
+        Text("Aa")
+          .font(.system(size: 13, weight: .medium, design: .serif))
+          .foregroundStyle(.secondary)
+          .frame(width: 28, height: 26)
+          .background(
+            showingTypography ? Color.primary.opacity(0.07) : .clear,
+            in: .rect(cornerRadius: 6, style: .continuous)
+          )
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .help("排版字体与字号")
+      .popover(isPresented: $showingTypography) {
+        typographyPopover
+      }
+
+      if item != nil || !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        WorkspaceMoreMenu(title: "思考操作") {
+          Button("复制全文", systemImage: "doc.on.doc") {
+            copyPlainText(currentText)
+            copiedToast = true
+            Task {
+              try? await Task.sleep(for: .seconds(1.2))
+              copiedToast = false
+            }
+          }
+          if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button("将标题加入今日待办", systemImage: "checkmark.circle") {
+              let taskTitle = thoughtTitle(currentText)
+              session.run {
+                _ = try await store.perform(
+                  .create(
+                    .tasks,
+                    fields: [
+                      .title: .string(taskTitle),
+                      .notes: .string(currentText),
+                      .plannedDate: .string(Clock.day()),
+                    ]))
+              }
+            }
+          }
+          Divider()
+          Button("删除这篇思考…", systemImage: "trash", role: .destructive) {
+            deletion = true
+          }
+        }
+        .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private var typographyPopover: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text("字体风格")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+          ForEach(ThoughtFontStyle.allCases) { option in
+            let active = fontStyle == option
+            Button {
+              fontStyleRaw = option.rawValue
+            } label: {
+              VStack(spacing: 3) {
+                Text("字")
+                  .font(option.samplePreviewFont)
+                Text(option.label)
+                  .font(.system(size: 11))
+              }
+              .foregroundStyle(active ? Color.accentColor : .primary)
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, 8)
+              .background(
+                active ? Color.accentColor.opacity(0.12) : WorkbenchDesign.fieldBackground,
+                in: .rect(cornerRadius: 8, style: .continuous)
+              )
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("字号大小")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+          ForEach(ThoughtFontScale.allCases) { scale in
+            let active = fontScale == scale
+            Button {
+              fontScaleRaw = scale.rawValue
+            } label: {
+              Text(scale.label)
+                .font(.system(size: 12, weight: active ? .medium : .regular))
+                .foregroundStyle(active ? Color.accentColor : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(
+                  active ? Color.accentColor.opacity(0.12) : WorkbenchDesign.fieldBackground,
+                  in: .rect(cornerRadius: 7, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+    }
+    .padding(14)
+    .frame(width: 236)
+  }
+
   private var allTags: [String] {
     Array(
       Set(
@@ -401,48 +815,76 @@ struct ThoughtTagPicker: View {
   @State private var newTag = ""
   @State private var error: String?
   @FocusState private var focused: Bool
+
   var body: some View {
-    HStack(spacing: WorkbenchDesign.Space.small) {
-      Button(tags.isEmpty ? "添加标签" : "标签", systemImage: "tag") { showing.toggle() }
-        .buttonStyle(.borderless).accessibilityIdentifier("thought.tags")
-        .popover(isPresented: $showing) { picker.presentationCompactAdaptation(.popover) }
+    HStack(spacing: 6) {
       ScrollView(.horizontal) {
-        HStack(spacing: WorkbenchDesign.Space.small) {
+        HStack(spacing: 6) {
           ForEach(tags, id: \.self) { tag in
             Button {
               apply(tags.filter { $0 != tag })
             } label: {
-              HStack(spacing: 4) {
+              HStack(spacing: 3) {
                 Text("#" + tag)
-                Image(systemName: "xmark").imageScale(.small)
+                Image(systemName: "xmark")
+                  .font(.system(size: 8, weight: .bold))
               }
-              .font(.subheadline).padding(.horizontal, WorkbenchDesign.Space.small)
-              .padding(.vertical, 5)
-              .background(WorkbenchDesign.selectionBackground, in: .capsule)
-            }.buttonStyle(.plain).foregroundStyle(.tint)
-              .accessibilityLabel("移除标签 " + tag)
+              .font(.system(size: 12))
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 8)
+              .padding(.vertical, 3.5)
+              .background(Color.primary.opacity(0.05), in: .capsule)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("移除标签 " + tag)
           }
+
+          Button {
+            showing.toggle()
+          } label: {
+            HStack(spacing: 3) {
+              Image(systemName: "plus")
+                .font(.system(size: 9, weight: .semibold))
+              Text(tags.isEmpty ? "标签" : "添加")
+                .font(.system(size: 12))
+            }
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3.5)
+            .background(Color.primary.opacity(0.035), in: .capsule)
+            .contentShape(Capsule())
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("thought.tags")
+          .popover(isPresented: $showing) { picker.presentationCompactAdaptation(.popover) }
         }
-      }.scrollIndicators(.hidden)
-    }.frame(minHeight: WorkbenchDesign.rowMinimum, alignment: .leading)
+      }
+      .scrollIndicators(.hidden)
+    }
+    .frame(minHeight: 28, alignment: .leading)
   }
+
   private var picker: some View {
     VStack(alignment: .leading, spacing: WorkbenchDesign.Space.medium) {
       tagEntry
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
-          ForEach(Array(Set(suggestions + tags)).sorted(), id: \.self) { tag in
-            suggestion(tag)
+      if !suggestions.isEmpty || !tags.isEmpty {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(Set(suggestions + tags)).sorted(), id: \.self) { tag in
+              suggestion(tag)
+            }
           }
-        }
-      }.frame(maxHeight: WorkbenchDesign.ThoughtLayout.tagListHeight)
+        }.frame(maxHeight: WorkbenchDesign.ThoughtLayout.tagListHeight)
+      }
       if let error { Text(error).font(.caption).foregroundStyle(.red) }
-    }.padding(WorkbenchDesign.Space.section)
-      .frame(width: WorkbenchDesign.ThoughtLayout.tagPickerWidth)
+    }
+    .padding(WorkbenchDesign.Space.section)
+    .frame(width: WorkbenchDesign.ThoughtLayout.tagPickerWidth)
   }
+
   private var tagEntry: some View {
     WorkspaceComposerLayout {
-      TextField("新标签", text: $newTag).textFieldStyle(.plain).focused($focused)
+      TextField("输入新标签，回车添加", text: $newTag).textFieldStyle(.plain).focused($focused)
         .workspaceInput(focused: focused).onSubmit { add() }
         .accessibilityIdentifier("thought.tag.input")
       Button("添加标签", systemImage: "plus") { add() }.labelStyle(.iconOnly)
@@ -451,21 +893,25 @@ struct ThoughtTagPicker: View {
         .accessibilityIdentifier("thought.tag.add")
     }
   }
+
   private func suggestion(_ tag: String) -> some View {
     Button {
       _ = apply(tags.contains(tag) ? tags.filter { $0 != tag } : tags + [tag])
     } label: {
       HStack {
-        Text("#" + tag).foregroundStyle(.primary)
+        Text("#" + tag).font(.subheadline).foregroundStyle(.primary)
         Spacer()
-        if tags.contains(tag) { Image(systemName: "checkmark").foregroundStyle(.tint) }
-      }.frame(minHeight: WorkbenchDesign.rowMinimum).frame(
-        maxWidth: .infinity,
-        alignment: .leading
-      ).contentShape(Rectangle())
-    }.buttonStyle(.plain).accessibilityLabel("标签 " + tag)
-      .accessibilityAddTraits(tags.contains(tag) ? .isSelected : [])
+        if tags.contains(tag) { Image(systemName: "checkmark").font(.caption.weight(.semibold)).foregroundStyle(.tint) }
+      }
+      .frame(minHeight: WorkbenchDesign.rowMinimum)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("标签 " + tag)
+    .accessibilityAddTraits(tags.contains(tag) ? .isSelected : [])
   }
+
   private func add() {
     let value = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
       .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
@@ -475,6 +921,7 @@ struct ThoughtTagPicker: View {
       showing = false
     }
   }
+
   @discardableResult private func apply(_ next: [String]) -> Bool {
     do {
       try change(next)
@@ -551,49 +998,84 @@ struct CoursesView: View {
   @State private var addSemester = false
   @State private var week = Date()
   @State private var semesterID = ""
-  private var semesters: [WorkspaceItem] {
-    (session.workspace?.snapshot[.semesters] ?? []).sorted { $0[.firstMonday].string > $1[.firstMonday].string }
-  }
   @State private var showTable = true
+  @State private var courseSearch = ""
   @State private var selectedCourse: WorkspaceItem?
   @State private var addedCourseID: String?
+
+  private var snapshot: WorkspaceSnapshot { session.workspace?.snapshot ?? .init() }
+  private var semesters: [WorkspaceItem] {
+    snapshot[.semesters].sorted { $0[.firstMonday].string > $1[.firstMonday].string }
+  }
   private var selectedSemester: WorkspaceItem? { semesters.first { $0.id == semesterID } }
-  private var courses: [WorkspaceItem] {
-    let rows = (session.workspace?.snapshot[.courses] ?? []).filter {
-      $0[.semesterID].string == semesterID
-    }
+  private var semesterCourses: [WorkspaceItem] {
+    let rows = snapshot[.courses].filter { $0[.semesterID].string == semesterID }
     guard let addedCourseID, let row = rows.first(where: { $0.id == addedCourseID }) else { return rows }
     return [row] + rows.filter { $0.id != addedCourseID }
   }
+  private var filteredCourses: [WorkspaceItem] {
+    let q = courseSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !q.isEmpty else { return semesterCourses }
+    return semesterCourses.filter {
+      $0.title.localizedCaseInsensitiveContains(q)
+        || $0[.teacher].string.localizedCaseInsensitiveContains(q)
+        || $0[.code].string.localizedCaseInsensitiveContains(q)
+    }
+  }
+  private var isViewingCurrentWeek: Bool {
+    Clock.calendar.isDate(week, equalTo: .now, toGranularity: .weekOfYear)
+  }
+  private var hasAnyMeetingsInSemester: Bool {
+    let courseIDs = Set(semesterCourses.map(\.id))
+    return snapshot[.courseMeetings].contains { courseIDs.contains($0[.courseID].string) }
+  }
+
   var body: some View {
     VStack(spacing: WorkbenchDesign.Space.medium) {
       if semesters.isEmpty {
         ContentUnavailableView {
-          Label("暂无学期", systemImage: "graduationcap")
+          Label("创建第一个学期", systemImage: "graduationcap")
         } description: {
-          Text("先新建一个学期，再添加你的课程。")
+          Text("新建学期会自动生成标准作息节次；你也可以将课表截图或 Excel 发给微信助手一键导入。")
         } actions: {
           Button("新建学期") { addSemester = true }
             .buttonStyle(.borderedProminent)
         }
-      } else if courses.isEmpty {
+      } else if semesterCourses.isEmpty {
         ContentUnavailableView {
-          Label("本学期暂无课程", systemImage: "graduationcap")
+          Label("「\(selectedSemester?.title ?? "本学期")」暂无课程", systemImage: "graduationcap")
+        } description: {
+          Text("添加课程时可一并勾选上课星期、节次与教学周。")
         } actions: {
           Button("添加课程") { addCourse = true }
             .buttonStyle(.borderedProminent)
         }
       } else if showTable {
         courseHeader
-        CourseSchedule(week: week, semesterID: semesterID) { selectedCourse = $0 }
+        CourseSchedule(
+          week: week,
+          semesterID: semesterID,
+          hasUnscheduledCourses: !hasAnyMeetingsInSemester,
+          isCurrentWeek: isViewingCurrentWeek,
+          onBackToCurrentWeek: { week = .now },
+          onShowCourseCards: { showTable = false },
+          onAddCourse: { addCourse = true }
+        ) { selectedCourse = $0 }
       } else {
         courseHeader
-        ScrollView {
-          CollectionBoardLayout {
-            ForEach(courses) { item in
-              CourseCard(item: item) { selectedCourse = item }
+        if filteredCourses.isEmpty {
+          EmptyState(title: "未找到匹配课程", symbol: "magnifyingglass", detail: "试试其他课程名或教师姓名。")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          ScrollView {
+            CollectionBoardLayout {
+              ForEach(filteredCourses) { item in
+                CourseCard(item: item) { selectedCourse = item }
+              }
             }
+            .padding(.bottom, WorkbenchDesign.Space.group)
           }
+          .scrollDismissesKeyboard(.interactively)
         }
       }
     }
@@ -601,14 +1083,23 @@ struct CoursesView: View {
     .workspacePage()
       .toolbar {
         ToolbarItem(placement: .primaryAction) {
-          Menu {
+          Button(semesters.isEmpty ? "新建学期" : "添加课程", systemImage: "plus") {
             if semesters.isEmpty {
-              Button("新建学期", systemImage: "calendar.badge.plus") { addSemester = true }
+              addSemester = true
             } else {
-              Button("添加课程", systemImage: "plus") { addCourse = true }
+              addCourse = true
+            }
+          }
+          .accessibilityIdentifier("course.new")
+        }
+        ToolbarItem(placement: .primaryAction) {
+          Menu {
+            if !semesters.isEmpty {
               Picker("学期", selection: $semesterID) {
                 ForEach(semesters) { Text($0.title).tag($0.id) }
               }
+              Divider()
+              Button("添加课程", systemImage: "plus") { addCourse = true }
             }
             Button("学期管理", systemImage: "calendar.badge.clock") { editSemester = true }
             Button("课程提醒", systemImage: "bell") { reminders = true }
@@ -621,10 +1112,12 @@ struct CoursesView: View {
       .sheet(isPresented: $addSemester) { SemesterEditor() }
       .sheet(isPresented: $reminders) { CourseRemindersView() }
       .sheet(isPresented: $addCourse) {
-        CourseEditor(defaultSemesterID: semesterID) { item in
+        CourseEditor(defaultSemesterID: semesterID) { item, scheduled in
           semesterID = item[.semesterID].string
           addedCourseID = item.id
-          showTable = false
+          if !scheduled {
+            showTable = false
+          }
         }
       }
       .sheet(isPresented: $editSemester) {
@@ -668,12 +1161,33 @@ struct CoursesView: View {
   }
   private var courseHeader: some View {
     HStack(spacing: WorkbenchDesign.Space.small) {
-      WorkspaceFilters(values: [true, false], selection: $showTable, title: { $0 ? "课表" : "课程" })
+      WorkspaceFilters(
+        values: [true, false],
+        selection: $showTable,
+        title: { $0 ? "课表" : "课程" },
+        count: { $0 ? 0 : semesterCourses.count }
+      )
+      if let selectedSemester, semesters.count > 1 {
+        Text(selectedSemester.title)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 4)
+          .background(WorkbenchDesign.fieldBackground, in: .capsule)
+      }
       Spacer(minLength: 0)
       if showTable {
+        if !isViewingCurrentWeek {
+          Button("本周") { week = .now }
+            .font(.subheadline)
+        }
         Button("上一周", systemImage: "chevron.left") { shiftWeek(-1) }.labelStyle(.iconOnly)
         Text(weekLabel).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
         Button("下一周", systemImage: "chevron.right") { shiftWeek(1) }.labelStyle(.iconOnly)
+      } else {
+        WorkspaceSearch(prompt: "搜索课程", text: $courseSearch)
+          .frame(maxWidth: 220)
       }
     }
   }

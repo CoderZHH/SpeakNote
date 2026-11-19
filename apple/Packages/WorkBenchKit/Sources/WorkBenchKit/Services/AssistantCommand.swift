@@ -47,14 +47,29 @@ struct AssistantFiles {
     return try JSONDecoder().decode(T.self, from: Data(contentsOf: url))
   }
 
-  func save<T: Encodable>(_ value: T, to file: String) throws {
-    let url = local.directory.appendingPathComponent(file)
+  func save<T: Encodable>(_ value: T, to file: String, excludeFromBackup: Bool = false) throws {
+    try local.prepare()
+    var url = local.directory.appendingPathComponent(file)
     try JSONEncoder().encode(value).write(to: url, options: .atomic)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    if excludeFromBackup {
+      var resourceValues = URLResourceValues()
+      resourceValues.isExcludedFromBackup = true
+      try? url.setResourceValues(resourceValues)
+    }
+  }
+
+  func remove(_ file: String) throws {
+    let url = local.directory.appendingPathComponent(file)
+    do {
+      try FileManager.default.removeItem(at: url)
+    } catch let error as CocoaError where error.code == .fileNoSuchFile {
+      return
+    }
   }
 
   func resetConversation() throws {
-    for name in ["state.json", "recent-image.data", "paused.json"] {
+    for name in ["state.json", "recent-image.data", "recent-images.json", "paused.json"] {
       do { try FileManager.default.removeItem(at: local.directory.appendingPathComponent(name)) }
       catch let error as CocoaError where error.code == .fileNoSuchFile { continue }
     }
@@ -64,6 +79,16 @@ struct AssistantFiles {
     let url = local.directory.appendingPathComponent("recent-image.data")
     try Data(dataURL.utf8).write(to: url, options: .atomic)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+  }
+
+  func cacheImages(_ dataURLs: [String]) throws {
+    let url = local.directory.appendingPathComponent("recent-images.json")
+    let data = try JSONEncoder().encode(dataURLs)
+    try data.write(to: url, options: .atomic)
+    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    if let first = dataURLs.first {
+      try? cacheImage(first)
+    }
   }
 
   func cachedImage(since date: Date?) throws -> String? {
@@ -77,6 +102,29 @@ struct AssistantFiles {
       throw WorkBenchError("暂存图片太大，请重新发送")
     }
     return try String(contentsOf: url, encoding: .utf8)
+  }
+
+  func cachedImages(since date: Date?) throws -> [String] {
+    let url = local.directory.appendingPathComponent("recent-images.json")
+    guard let date, Date.now.timeIntervalSince(date) < 600 else {
+      try? FileManager.default.removeItem(at: url)
+      _ = try? cachedImage(since: date)
+      return []
+    }
+    if FileManager.default.fileExists(atPath: url.path) {
+      let info = try FileManager.default.attributesOfItem(atPath: url.path)
+      guard (info[.size] as? Int ?? 0) <= 30 * 1024 * 1024 else {
+        throw WorkBenchError("暂存图片太大，请重新发送")
+      }
+      let data = try Data(contentsOf: url)
+      if let urls = try? JSONDecoder().decode([String].self, from: data), !urls.isEmpty {
+        return urls
+      }
+    }
+    if let single = try cachedImage(since: date) {
+      return [single]
+    }
+    return []
   }
 
   func exclusively<T>(isolation: isolated (any Actor)? = #isolation, _ operation: () async throws -> T) async throws -> T {
@@ -210,31 +258,38 @@ public enum AssistantCommand {
         do {
           text = try messageText(items)
           if documents.count > 1 || (!documents.isEmpty && !images.isEmpty) {
-            reply = .init(text: "请一次发送一个 Excel 文件或一张课表截图。", pending: state.pending)
+            reply = .init(text: "请一次发送一个 Excel 文件或课表截图。", pending: state.pending)
           } else if let document = documents.first {
             let workbook = try await WeChatClient.timetableFile(document["file_item"])
             timetableFile = workbook
-            reply = try await agent.respond(to: text, image: nil, history: state.history, pending: state.pending,
+            reply = try await agent.respond(to: text, image: nil, images: [], history: state.history, pending: state.pending,
               requestID: requestID, timetableFile: workbook)
           } else if text.isEmpty && images.isEmpty {
             reply = .init(text: "目前支持文字、图片和附带微信转写的语音。", pending: state.pending)
-          } else if images.count > 1 {
-            reply = .init(text: "请一次发一张图片。", pending: state.pending)
           } else {
-            let image: String?
+            var loadedImages: [String] = []
             let imageInstruction: String?
-            if let item = images.first {
-              image = try await WeChatClient.imageDataURL(item["image_item"])
-              if let image { try files.cacheImage(image); state.recentImageAt = .now }
+            if !images.isEmpty {
+              guard images.count <= 9 else {
+                throw WorkBenchError("单次最多支持接收 9 张图片，请分批发送。")
+              }
+              for item in images {
+                let dataURL = try await WeChatClient.imageDataURL(item["image_item"])
+                loadedImages.append(dataURL)
+              }
+              try files.cacheImages(loadedImages)
+              state.recentImageAt = .now
               imageInstruction = state.instructionForIncomingImage()
             } else {
-              let control = text == "/ping" || text == "/pending" || text.hasPrefix("确认 ") || text.hasPrefix("取消 ")
-              image = control ? nil : try files.cachedImage(since: state.recentImageAt)
+              let control = text == "/ping" || text == "/pending" || PendingChange.isControlKeyword(text)
+              loadedImages = control ? [] : try files.cachedImages(since: state.recentImageAt)
               imageInstruction = nil
             }
-            reply = try await agent.respond(to: text, image: image, history: state.history, pending: state.pending,
+            reply = try await agent.respond(to: text, images: loadedImages, history: state.history, pending: state.pending,
               requestID: requestID, imageInstruction: imageInstruction)
-            if !text.isEmpty { state.recentImageAt = nil }
+            if !text.isEmpty && reply.waitingForImage != true && reply.pending == nil {
+              state.recentImageAt = nil
+            }
           }
         } catch {
           try Task.checkCancellation()
@@ -243,12 +298,18 @@ public enum AssistantCommand {
         if state.firstTaskID == nil { state.firstTaskID = reply.createdTaskID }
         // Keep confirmations and their codes out of later model requests.
         state.history = state.history.filter { $0.isRecent() }
-        if (reply.pending == nil || reply.pending?.isTimetable == true) && !text.hasPrefix("确认 ") && !text.hasPrefix("取消 ") && text != "/ping" {
+        if (reply.pending == nil || reply.pending?.isTimetable == true) && !PendingChange.isControlKeyword(text) && text != "/ping" {
           let user: String
           if let timetableFile {
             user = text + "\n[Excel 课表资料]\n" + timetableFile
           } else if text.isEmpty {
-            user = items.contains { $0["type"].int == 3 } ? "[语音]" : "[图片]"
+            if items.contains(where: { $0["type"].int == 3 }) {
+              user = "[语音]"
+            } else if images.count > 1 {
+              user = "[\(images.count)张图片]"
+            } else {
+              user = "[图片]"
+            }
           } else {
             user = text
           }

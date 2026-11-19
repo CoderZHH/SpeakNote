@@ -23,6 +23,11 @@ struct SettingsView: View {
   @State private var driveEnabled = true
   @State private var backupMessage = ""
   @State private var lastBackup = ""
+  #if os(macOS)
+    @AppStorage("showCoursesModule") private var showCoursesModule = true
+    @AppStorage("enableMenuBarHotKey") private var enableMenuBarHotKey = true
+    @AppStorage("menuBarHotKey") private var menuBarHotKey: GlobalHotKey = .default
+  #endif
   var body: some View {
     Form {
       #if os(iOS)
@@ -51,6 +56,60 @@ struct SettingsView: View {
       #endif
       if session.role == .workbench {
         #if os(macOS)
+          Section {
+            Toggle("启用菜单栏全局呼出热键", isOn: $enableMenuBarHotKey)
+            if enableMenuBarHotKey {
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center) {
+                  Text("呼出快捷键")
+                    .font(.body)
+                  Spacer()
+                  GlobalHotKeyRecorder(hotKey: $menuBarHotKey)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                  HStack(spacing: 6) {
+                    Text("推荐预设：").font(.caption).foregroundStyle(.secondary)
+                    ForEach(GlobalHotKey.presets, id: \.label) { preset in
+                      Button {
+                        menuBarHotKey = preset.hotKey
+                      } label: {
+                        Text(preset.label)
+                          .font(.caption.weight(menuBarHotKey == preset.hotKey ? .semibold : .regular))
+                          .padding(.horizontal, 8)
+                          .padding(.vertical, 4)
+                          .foregroundStyle(menuBarHotKey == preset.hotKey ? Color.accentColor : Color.primary)
+                          .background(
+                            menuBarHotKey == preset.hotKey
+                              ? Color.accentColor.opacity(0.14)
+                              : WorkbenchDesign.fieldBackground,
+                            in: .capsule
+                          )
+                          .overlay(
+                            Capsule().strokeBorder(
+                              menuBarHotKey == preset.hotKey ? Color.accentColor.opacity(0.4) : Color.clear,
+                              lineWidth: 1
+                            )
+                          )
+                      }
+                      .buttonStyle(.plain)
+                      .accessibilityLabel("预设快捷键 \(preset.label)")
+                    }
+                  }
+                }
+              }
+              .padding(.vertical, 4)
+            }
+            Toggle("在侧边栏显示「课程」模块", isOn: $showCoursesModule)
+          } header: {
+            Text("界面与快捷面板")
+          } footer: {
+            Text(
+              enableMenuBarHotKey
+                ? "在任意应用界面按下 \(menuBarHotKey.displayString)（或点击屏幕右上角菜单栏图标），可随时呼出极简快捷面板，快速录入待办、随手记与控制专注计时。"
+                : "点击屏幕右上角菜单栏中的随口记图标，可快速录入待办、随手记与控制专注计时。"
+            )
+          }
           ReminderNotificationSettings()
         #endif
         Section("备份与数据") {

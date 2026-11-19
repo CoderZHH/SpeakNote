@@ -12,6 +12,8 @@ struct InlineItemText: View {
   @State private var text: String
   @State private var saving = false
   @State private var editing = false
+  @State private var cancelled = false
+  @State private var hovering = false
   @FocusState private var focused: Bool
   #if os(iOS)
     @State private var nativeRemarkFocused = false
@@ -34,7 +36,10 @@ struct InlineItemText: View {
     Group {
       if editing {
         HStack(alignment: .top, spacing: WorkbenchDesign.Space.small) {
-          input.disabled(saving).task { setEditingFocus(true) }
+          input.disabled(saving).task {
+            cancelled = false
+            setEditingFocus(true)
+          }
           #if os(iOS)
             if inlineDone {
               Button("完成", action: finishEditing).buttonStyle(.borderless)
@@ -47,14 +52,25 @@ struct InlineItemText: View {
       } else {
         Button {
           text = value
+          cancelled = false
           editing = true
         } label: {
           Text(value.isEmpty ? placeholder : value)
             .foregroundStyle(value.isEmpty ? .secondary : .primary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(
+              hovering ? Color.primary.opacity(0.04) : .clear,
+              in: .rect(cornerRadius: 5)
+            )
             .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityHint("轻点编辑")
+        }.buttonStyle(.plain)
+          #if os(macOS)
+            .onHover { hovering = $0 }
+          #endif
+          .accessibilityHint("轻点编辑")
           .accessibilityIdentifier(identifier, isEnabled: !identifier.isEmpty)
       }
     }
@@ -62,7 +78,7 @@ struct InlineItemText: View {
     #if os(macOS)
       .onDisappear {
         // Dismissing the detail sheet can remove the field before focus changes are delivered.
-        if inlineDone && editing { commit() }
+        if inlineDone && editing && !cancelled { commit() }
       }
     #endif
   }
@@ -91,7 +107,16 @@ struct InlineItemText: View {
       .accessibilityIdentifier(identifier, isEnabled: !identifier.isEmpty)
       .workspaceKeyboardDone(when: focused && !inlineDone, done: finishEditing)
       .onSubmit { finishEditing() }
-      .onChange(of: focused) { _, focused in if !focused { commit() } }
+      #if os(macOS)
+        .onExitCommand { cancelEditing() }
+      #endif
+      .onChange(of: focused) { _, focused in if !focused && !cancelled { commit() } }
+  }
+  private func cancelEditing() {
+    cancelled = true
+    text = value
+    setEditingFocus(false)
+    editing = false
   }
   private func finishEditing() {
     #if os(iOS)
@@ -143,8 +168,12 @@ struct ItemRow: View {
   @State private var schedule = false
   @State private var deletion = false
   @State private var actions = false
+  @State private var hoveringRow = false
   @State private var pendingAction: ItemAction?
   var isTask: Bool { item.entity == .tasks }
+  private var isFocusedTask: Bool {
+    isTask && session.focusStatus?.taskID == item.id
+  }
   private var hasRemarks: Bool {
     !item[isTask ? .notes : .remark].string.isEmpty
       || session.workspace?.snapshot[.attachments].contains {
@@ -171,11 +200,20 @@ struct ItemRow: View {
           }.strikethrough(isTask && item.status == "done").frame(
             maxWidth: .infinity, alignment: .leading
           ).accessibilityIdentifier("item.title." + item.id)
+          if isTask && item.status == "todo" && !item[.resumeHint].string.isEmpty {
+            Label(item[.resumeHint].string, systemImage: "bookmark.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          }
           #if os(iOS)
             if showsAssociation { associationLabel }
           #endif
         }.frame(maxWidth: .infinity, alignment: .leading)
         #if os(macOS)
+          if isTask && item.status == "todo" && (isFocusedTask || hoveringRow) {
+            rowFocusButton
+          }
           if showsAssociation { associationLabel }
         #endif
         dateLabel
@@ -209,6 +247,9 @@ struct ItemRow: View {
       }
       if remarks { ItemRemarks(item: item).padding(.leading, isTask ? 30 : 0) }
     }.padding(.vertical, 5)
+      #if os(macOS)
+        .onHover { hoveringRow = $0 }
+      #endif
       .sheet(isPresented: $association) { AssociationPicker(item: item) }
       .sheet(isPresented: $schedule) { ScheduleEditor(item: item) }
       .confirmationDialog("删除这条内容？", isPresented: $deletion, titleVisibility: .visible) {
@@ -219,15 +260,42 @@ struct ItemRow: View {
         }
       }
   }
+  @ViewBuilder private var rowFocusButton: some View {
+    let running = isFocusedTask && session.focusStatus?.timer.isRunning == true
+    Button {
+      session.run {
+        if running {
+          _ = try await session.workspace?.perform(.pauseFocus)
+        } else {
+          _ = try await session.workspace?.perform(.startFocus(taskID: item.id))
+        }
+      }
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: running ? "pause.fill" : "play.fill")
+          .font(.system(size: 9, weight: .bold))
+        Text(isFocusedTask ? (running ? "专注中" : "已暂停") : "专注")
+          .font(.caption2.weight(.medium))
+      }
+      .foregroundStyle(isFocusedTask ? Color.accentColor : .secondary)
+      .padding(.horizontal, 7)
+      .padding(.vertical, 3)
+      .background(
+        isFocusedTask ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.05),
+        in: .capsule
+      )
+    }
+    .buttonStyle(.plain)
+    .help(running ? "暂停当前专注" : "对此任务开启专注")
+  }
   @ViewBuilder private var associationLabel: some View {
-    if let linked = session.workspace?.snapshot.association(item) {
+    if let snapshot = session.workspace?.snapshot, let linked = snapshot.association(item) {
       Button {
         openCollection?(CollectionRoute(entity: linked.entity, id: linked.id))
       } label: {
         Label(
           linked.title,
-          systemImage: linked.entity == .projects
-            ? "folder" : linked.entity == .courses ? "graduationcap" : "book"
+          systemImage: snapshot.collectionSymbol(linked)
         )
         .font(.caption).lineLimit(1).truncationMode(.tail)
         .padding(.horizontal, 5).padding(.vertical, 3)
@@ -261,7 +329,9 @@ struct ItemRow: View {
     case .focus:
       session.run { _ = try await session.workspace?.perform(.startFocus(taskID: item.id)) }
     case .move:
-      update([.plannedDate: item[.plannedDate].isNull ? .string(Clock.day()) : .null])
+      let today = Clock.day()
+      let dueToday = isTaskDueForToday(item, day: today)
+      update([.plannedDate: dueToday ? .null : .string(today)])
     case .restore: update([.status: .string("todo"), .plannedDate: .string(Clock.day())])
     case .schedule: schedule = true
     case .importance(let level):
@@ -296,6 +366,7 @@ struct ItemRemarks: View {
     case .tasks: .task(item.id)
     case .notes: .note(item.id)
     case .projects: .project(item.id)
+    case .collections: .collection(item.id)
     case .courses: .course(item.id)
     default: .learning(item.id)
     }
@@ -404,31 +475,65 @@ struct AssociationSelectionPicker: View {
   @State private var search = ""
   @State private var saving = false
   @State private var error: String?
+  private var snapshot: WorkspaceSnapshot { session.workspace?.snapshot ?? .init() }
+  private var activeSpaces: [WorkspaceItem] {
+    snapshot[.spaces]
+      .filter { $0.status != "done" }
+      .sorted { ($0[.position].int, $0.createdAt, $0.id) < ($1[.position].int, $1.createdAt, $1.id) }
+  }
+  private func spaceItems(_ space: WorkspaceItem) -> [WorkspaceItem] {
+    let base: [WorkspaceItem]
+    switch space[.legacyEntity].string {
+    case "projects": base = snapshot[.projects]
+    case "learning": base = snapshot[.learning]
+    default: base = snapshot[.collections].filter { $0[.spaceID].string == space.id }
+    }
+    return base.filter {
+      $0.status != "done"
+        && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
+    }
+  }
+  private var hasLegacyProjectsSpace: Bool {
+    snapshot[.spaces].contains { $0[.legacyEntity].string == "projects" }
+  }
+  private var hasLegacyLearningSpace: Bool {
+    snapshot[.spaces].contains { $0[.legacyEntity].string == "learning" }
+  }
   var body: some View {
     NavigationStack {
       WorkspaceList {
         Button("不关联") { choose(nil) }
-        ForEach([WorkspaceEntity.projects, .learning, .courses], id: \.self) { entity in
-          Section(entity == .projects ? "项目" : entity == .learning ? "学习" : "课程") {
-            ForEach(
-              (session.workspace?.snapshot[entity] ?? []).filter {
-                $0.status != "done"
-                  && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
-              }
-            ) { linked in
-              Button {
-                choose(linked)
-              } label: {
-                HStack {
-                  Text(linked.title).foregroundStyle(.primary)
-                  Spacer()
-                  if selected?.id == linked.id && selected?.entity == linked.entity {
-                    Image(systemName: "checkmark")
-                  }
-                }
+        ForEach(activeSpaces) { space in
+          let rows = spaceItems(space)
+          if !rows.isEmpty {
+            Section(space.title) {
+              ForEach(rows) { linked in
+                associationRow(linked)
               }
             }
           }
+        }
+        if !hasLegacyProjectsSpace {
+          let rows = snapshot[.projects].filter {
+            $0.status != "done" && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
+          }
+          if !rows.isEmpty {
+            Section("项目") { ForEach(rows) { associationRow($0) } }
+          }
+        }
+        if !hasLegacyLearningSpace {
+          let rows = snapshot[.learning].filter {
+            $0.status != "done" && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
+          }
+          if !rows.isEmpty {
+            Section("学习") { ForEach(rows) { associationRow($0) } }
+          }
+        }
+        let courseRows = snapshot[.courses].filter {
+          $0.status != "done" && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
+        }
+        if !courseRows.isEmpty {
+          Section("课程") { ForEach(courseRows) { associationRow($0) } }
         }
         if let error { Text(error).font(.caption).foregroundStyle(.red) }
       }.disabled(saving).searchable(text: $search, prompt: "搜索关联内容").navigationTitle("关联")
@@ -441,6 +546,20 @@ struct AssociationSelectionPicker: View {
       #if os(macOS)
         .frame(width: WorkbenchDesign.sheetWidth, height: WorkbenchDesign.SelectionLayout.height)
       #endif
+  }
+  private func associationRow(_ linked: WorkspaceItem) -> some View {
+    Button {
+      choose(linked)
+    } label: {
+      HStack {
+        Label(linked.title, systemImage: snapshot.collectionSymbol(linked))
+          .foregroundStyle(.primary)
+        Spacer()
+        if selected?.id == linked.id && selected?.entity == linked.entity {
+          Image(systemName: "checkmark").foregroundStyle(.tint)
+        }
+      }
+    }
   }
   private func choose(_ linked: WorkspaceItem?) {
     guard !saving else { return }
@@ -488,24 +607,39 @@ struct TaskScheduleEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        WorkspaceDateField(title: "日期", selection: $value.date)
-        Toggle("具体时间", isOn: $value.timed).accessibilityIdentifier("schedule.timed")
-        if value.timed {
-          DatePicker("开始", selection: $value.start, displayedComponents: .hourAndMinute)
-            .accessibilityIdentifier("schedule.start")
-          DatePicker("结束", selection: $value.end, displayedComponents: .hourAndMinute)
-            .accessibilityIdentifier("schedule.end")
+        Section("计划执行") {
+          Toggle("设定计划日期", isOn: $value.hasPlannedDate)
+            .accessibilityIdentifier("schedule.planned")
+          if value.hasPlannedDate {
+            WorkspaceDateField(title: "计划日期", selection: $value.date)
+            Toggle("具体时间", isOn: $value.timed).accessibilityIdentifier("schedule.timed")
+            if value.timed {
+              DatePicker("开始", selection: $value.start, displayedComponents: .hourAndMinute)
+                .accessibilityIdentifier("schedule.start")
+              DatePicker("结束", selection: $value.end, displayedComponents: .hourAndMinute)
+                .accessibilityIdentifier("schedule.end")
+            }
+          }
+          Toggle("提醒", isOn: $value.reminder)
+            .disabled((!value.hasPlannedDate || !value.timed) && value.reminderAt == nil)
+            .accessibilityIdentifier("schedule.reminder")
+            .help("默认在计划开始时间提醒")
+          if let reminderAt = value.reminderAt, value.reminder {
+            Text("提醒时间：\(Clock.day(reminderAt)) \(TaskScheduleValues.time(reminderAt))")
+              .font(.subheadline).foregroundStyle(.secondary)
+          }
         }
-        Toggle("提醒", isOn: $value.reminder).disabled(!value.timed && value.reminderAt == nil)
-          .accessibilityIdentifier("schedule.reminder")
-          .help("默认在计划开始时间提醒")
-        if let reminderAt = value.reminderAt, value.reminder {
-          Text("提醒时间：\(Clock.day(reminderAt)) \(TaskScheduleValues.time(reminderAt))")
-            .font(.subheadline).foregroundStyle(.secondary)
+        Section("截止期限") {
+          Toggle("截止日期", isOn: $value.hasDueDate)
+            .accessibilityIdentifier("schedule.due.toggle")
+          if value.hasDueDate {
+            WorkspaceDateField(title: "截止日期", selection: $value.dueDate)
+              .accessibilityIdentifier("schedule.due.date")
+          }
         }
         if let error { Text(error).font(.subheadline).foregroundStyle(.red) }
       }.environment(\.timeZone, Clock.calendar.timeZone).environment(\.calendar, Clock.calendar)
-        .disabled(saving).workspaceSheetForm(height: 340).navigationTitle("安排时间").toolbar {
+        .disabled(saving).workspaceSheetForm(height: 430).navigationTitle("安排时间").toolbar {
           ToolbarItem(placement: .cancellationAction) {
             Button("取消") { dismiss() }.disabled(saving).accessibilityIdentifier("schedule.cancel")
           }
@@ -515,7 +649,15 @@ struct TaskScheduleEditor: View {
           }
         }
     }.interactiveDismissDisabled(saving)
-      .onChange(of: value.timed) { _, enabled in if !enabled && value.reminderAt == nil { value.reminder = false } }
+      .onChange(of: value.timed) { _, enabled in
+        if !enabled && value.reminderAt == nil { value.reminder = false }
+      }
+      .onChange(of: value.hasPlannedDate) { _, enabled in
+        if !enabled {
+          value.timed = false
+          if value.reminderAt == nil { value.reminder = false }
+        }
+      }
   }
   private func commit() {
     guard !saving else { return }
@@ -533,13 +675,15 @@ struct TaskScheduleEditor: View {
 }
 struct NewItemForm: View {
   let entity: WorkspaceEntity
+  let space: WorkspaceItem?
+  var onCommitted: (() -> Void)? = nil
   @Environment(AppSession.self) private var session
   @Environment(\.dismiss) private var dismiss
-  @State private var title = ""
+  @State private var title: String
   @State private var details = ""
   @State private var linked: WorkspaceItem?
   @State private var importance = 1
-  @State private var schedule = TaskScheduleValues()
+  @State private var schedule: TaskScheduleValues
   @State private var linking = false
   @State private var scheduling = false
   @State private var saving = false
@@ -549,15 +693,34 @@ struct NewItemForm: View {
   @State private var attachmentStaging = EntryAttachmentStaging()
   @State private var importing = false
   @FocusState private var titleFocused: Bool
-  init(entity: WorkspaceEntity, association: WorkspaceItem? = nil) {
+  init(
+    entity: WorkspaceEntity,
+    association: WorkspaceItem? = nil,
+    space: WorkspaceItem? = nil,
+    initialTitle: String = "",
+    initialPlannedToday: Bool = true,
+    onCommitted: (() -> Void)? = nil
+  ) {
     self.entity = entity
+    self.space = space
+    self.onCommitted = onCommitted
+    _title = State(initialValue: initialTitle)
     _linked = State(initialValue: association)
+    var sched = TaskScheduleValues()
+    sched.hasPlannedDate = initialPlannedToday
+    _schedule = State(initialValue: sched)
   }
   private var heading: String {
-    entity == .tasks ? "新建任务" : entity == .notes ? "随手记" : entity == .projects ? "新建项目" : "新建学习"
+    if let space { return "新建「\(space.title)」卡片" }
+    return entity == .tasks
+      ? "新建任务"
+      : entity == .notes
+        ? "随手记"
+        : entity == .projects ? "新建项目" : entity == .collections ? "新建卡片" : "新建学习"
   }
   private var prompt: String {
-    entity == .tasks
+    if space != nil || entity == .collections { return "卡片名称" }
+    return entity == .tasks
       ? "接下来要做什么？" : entity == .notes ? "先记下来…" : entity == .projects ? "项目名称" : "想学习什么？"
   }
   var body: some View {
@@ -575,7 +738,7 @@ struct NewItemForm: View {
         TextField(prompt, text: $title, axis: .vertical).lineLimit(1...8)
           .font(.title3).focused($titleFocused).labelsHidden()
           .workspaceInput(focused: titleFocused).accessibilityIdentifier("entry.title")
-        if [.tasks, .projects, .learning].contains(entity) {
+        if [.tasks, .projects, .learning, .collections].contains(entity) {
           TextField("添加备注（选填）", text: $details, axis: .vertical).lineLimit(1...6)
             .labelsHidden().workspaceInput().accessibilityIdentifier("entry.details")
         }
@@ -672,7 +835,12 @@ struct NewItemForm: View {
           var values: [ItemField: JSONValue] = [
             entity == .notes ? .content : .title: .string(title)
           ]
-          if [.projects, .learning].contains(entity) { values[.description] = .string(details) }
+          if [.projects, .learning, .collections].contains(entity) {
+            values[.description] = .string(details)
+          }
+          if entity == .collections, let space {
+            values[.spaceID] = .string(space.id)
+          }
           if entity == .notes { values.merge(try itemAssociationFields(linked)) { _, v in v } }
           fields = values
         }
@@ -686,6 +854,7 @@ struct NewItemForm: View {
           session.error = "任务已添加，" + issue
         }
         await attachmentStaging.discard()
+        onCommitted?()
         dismiss()
       } catch { self.error = error.localizedDescription }
     }

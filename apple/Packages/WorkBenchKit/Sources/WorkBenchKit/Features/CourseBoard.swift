@@ -3,6 +3,11 @@ import SwiftUI
 struct CourseSchedule: View {
   let week: Date
   let semesterID: String
+  var hasUnscheduledCourses = false
+  var isCurrentWeek = true
+  var onBackToCurrentWeek: (() -> Void)? = nil
+  var onShowCourseCards: (() -> Void)? = nil
+  var onAddCourse: (() -> Void)? = nil
   let open: (WorkspaceItem) -> Void
   @Environment(AppSession.self) private var session
 
@@ -13,7 +18,32 @@ struct CourseSchedule: View {
     ).filter { $0.course[.semesterID].string == semesterID }
     Group {
       if rows.isEmpty {
-        ContentUnavailableView("本周没有上课安排", systemImage: "calendar")
+        ContentUnavailableView {
+          Label(
+            hasUnscheduledCourses ? "本学期课程尚未设置上课时间" : "本周没有上课安排",
+            systemImage: "calendar"
+          )
+        } description: {
+          Text(
+            hasUnscheduledCourses
+              ? "切换到「课程」卡片即可为每门课设置周次、节次与教室。"
+              : "可以切换其他教学周查看，或添加新课程。"
+          )
+        } actions: {
+          HStack(spacing: WorkbenchDesign.Space.small) {
+            if hasUnscheduledCourses, let onShowCourseCards {
+              Button("去课程卡片设置排课", action: onShowCourseCards)
+                .buttonStyle(.borderedProminent)
+            } else if !isCurrentWeek, let onBackToCurrentWeek {
+              Button("回到本周", action: onBackToCurrentWeek)
+                .buttonStyle(.bordered)
+            }
+            if let onAddCourse {
+              Button("添加课程", action: onAddCourse)
+                .buttonStyle(.bordered)
+            }
+          }
+        }
       } else {
         weekBoard(rows)
       }

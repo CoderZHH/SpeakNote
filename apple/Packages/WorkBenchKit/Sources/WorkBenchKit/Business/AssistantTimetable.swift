@@ -1,35 +1,114 @@
 import Foundation
 
+func compactAssistantWeeks(_ rawWeeks: [Int]) -> String {
+  let weeks = Array(Set(rawWeeks)).sorted()
+  guard !weeks.isEmpty else { return "" }
+  if weeks.count == 1 { return "第\(weeks[0])周" }
+
+  // Detect pure consecutive odd or even sequence (>= 4 weeks)
+  if weeks.count >= 4, let first = weeks.first, let last = weeks.last {
+    let allStep2 = zip(weeks, weeks.dropFirst()).allSatisfy { $1 - $0 == 2 }
+    if allStep2 {
+      return "\(first)–\(last)\(first % 2 == 1 ? "单" : "双")周"
+    }
+  }
+
+  var segments: [String] = []
+  var idx = 0
+  while idx < weeks.count {
+    let start = weeks[idx]
+    var end = start
+    while idx + 1 < weeks.count && weeks[idx + 1] == end + 1 {
+      idx += 1
+      end = weeks[idx]
+    }
+    segments.append(start == end ? "\(start)" : "\(start)–\(end)")
+    idx += 1
+  }
+  return segments.joined(separator: "、") + "周"
+}
+
+private func compactPeriodsSummary(_ periods: [JSONValue]) -> String {
+  guard !periods.isEmpty else { return "" }
+  if periods.count <= 3 {
+    return "作息：" + periods.map {
+      "\($0["number"].int)节 \($0["start"].string)–\($0["end"].string)"
+    }.joined(separator: " · ")
+  }
+
+  func bucketSpan(_ slice: [JSONValue], label: String) -> String? {
+    guard let first = slice.first, let last = slice.last else { return nil }
+    return "\(label) \(first["start"].string)–\(last["end"].string)"
+  }
+
+  let morning = periods.filter { (timeMinutes($0["start"].string) ?? 0) < 12 * 60 }
+  let afternoon = periods.filter {
+    let m = timeMinutes($0["start"].string) ?? 0
+    return m >= 12 * 60 && m < 18 * 60
+  }
+  let evening = periods.filter { (timeMinutes($0["start"].string) ?? 0) >= 18 * 60 }
+
+  let parts = [
+    bucketSpan(morning, label: "上午"),
+    bucketSpan(afternoon, label: "下午"),
+    bucketSpan(evening, label: "晚上"),
+  ].compactMap { $0 }
+
+  if parts.isEmpty {
+    let first = periods.first!["start"].string
+    let last = periods.last!["end"].string
+    return "作息：共 \(periods.count) 节（\(first)–\(last)）"
+  }
+  return "作息：共 \(periods.count) 节（" + parts.joined(separator: " / ") + "）"
+}
+
 extension AssistantPreparedPlan {
   func timetablePreview() throws -> JSONValue {
-    guard let semester = changes.first, semester.entity == "semesters" else {
+    guard let semester = changes.first(where: { $0.entity == "semesters" && $0.kind == "create" }) else {
       throw WorkBenchError("找不到待确认的学期")
     }
     let term = semester.fields
     let periods = term["periods"]?.array ?? []
-    let courses = changes.filter { $0.entity == "courses" }
-    let meetings = Dictionary(grouping: changes.filter { $0.entity == "course_meetings" }) {
+    let courses = changes.filter { $0.entity == "courses" && $0.kind == "create" }
+    let meetings = Dictionary(grouping: changes.filter { $0.entity == "course_meetings" && $0.kind == "create" }) {
       $0.fields.text("course_id")
     }
-    var lines = [
-      "新建学期「\(term.text("title"))」",
-      "第一周周一：\(term.text("first_monday")) · 共 \(term.integer("weeks")) 周",
-      "节次：" + periods.map {
-        "\($0["number"].int)节 \($0["start"].string)–\($0["end"].string)"
-      }.joined(separator: "；"),
+    var lines: [String] = []
+    if let deleted = changes.first(where: { $0.entity == "semesters" && $0.kind == "delete" }) {
+      let oldTitle = deleted.before.text("title")
+      lines.append("⚠️ 确认后将删除旧学期「\(oldTitle.isEmpty ? "原学期" : oldTitle)」及关联排课")
+    }
+    lines += [
+      "「\(term.text("title"))」· 共 \(courses.count) 门课",
+      "开学：\(term.text("first_monday"))（周一）· 共 \(term.integer("weeks")) 周",
+      compactPeriodsSummary(periods),
+      "",
     ]
     let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
-    for course in courses {
+    for (idx, course) in courses.enumerated() {
       let fields = course.fields
-      let details = [fields.text("teacher"), fields.text("code")].filter { !$0.isEmpty }
-      lines.append("• " + fields.text("title") + (details.isEmpty ? "" : "（" + details.joined(separator: "、") + "）"))
+      let title = fields.text("title")
+      let teacher = fields.text("teacher")
+      let code = fields.text("code")
+      var meta: [String] = []
+      if !teacher.isEmpty { meta.append(teacher) }
+      if !code.isEmpty && !title.hasSuffix(code) { meta.append(code) }
+      let suffix = meta.isEmpty ? "" : " · " + meta.joined(separator: " ")
+      lines.append("\(idx + 1). \(title)\(suffix)")
+
       for meeting in meetings[course.targetID, default: []] {
         let slot = meeting.fields
         let weekday = weekdays[Int(slot.integer("weekday")) - 1]
-        let weeks = slot[value: "weeks"].array.map { String($0.int) }.joined(separator: "、")
+        let pStart = slot.integer("period_start")
+        let pEnd = slot.integer("period_end")
+        let periodText = pStart == pEnd ? "第\(pStart)节" : "\(pStart)–\(pEnd)节"
+        let weekNums = slot[value: "weeks"].array.map { Int($0.int) }
+        let weekText = compactAssistantWeeks(weekNums)
         let room = slot.text("room")
-        lines.append("  周\(weekday) 第\(slot.integer("period_start"))–\(slot.integer("period_end"))节 · 周次 \(weeks)"
-          + (room.isEmpty ? "" : " · " + room))
+        lines.append(
+          "   周\(weekday) \(periodText) · \(weekText)"
+            + (room.isEmpty ? "" : " · " + room)
+        )
       }
     }
     let preview = lines.joined(separator: "\n")
@@ -41,11 +120,20 @@ extension AssistantPreparedPlan {
 extension WorkspaceEngine {
   private enum TimetableValidation: Error { case rollback }
 
-  func requireNewSemester(_ fields: Record) throws {
-    let existing = try db.one(
-      "SELECT id FROM semesters WHERE first_monday=? OR title=? LIMIT 1",
-      [.string(fields.text("first_monday")), .string(fields.text("title"))])
-    try require(existing.isEmpty, "已有同名或同一天开始的学期，未创建。请先在课程页核对现有学期。")
+  func requireNewSemester(_ fields: Record, ignoringID: String? = nil) throws {
+    var query = "SELECT id,title,first_monday FROM semesters WHERE (first_monday=? OR title=?)"
+    var args: [JSONValue] = [.string(fields.text("first_monday")), .string(fields.text("title"))]
+    if let ignoringID, !ignoringID.isEmpty {
+      query += " AND id != ?"
+      args.append(.string(ignoringID))
+    }
+    query += " LIMIT 1"
+    let existing = try db.one(query, args)
+    if !existing.isEmpty {
+      throw WorkBenchError(
+        "已有同名或同一天开学的学期「\(existing.text("title"))」（\(existing.text("first_monday"))），未重复创建。你可以直接让我删除或修改原有学期后再导入。"
+      )
+    }
   }
 
   func prepareAssistantTimetable(_ input: JSONValue, requestID: String, now: Date) throws -> JSONValue {
@@ -92,20 +180,43 @@ extension WorkspaceEngine {
       .init(id: id, kind: "create", entity: entity.rawValue, targetID: id,
         fields: fields, before: [:], versions: [:], associationNames: nil, attachImage: nil)
     }
-    var changes = [create(.semesters, semesterID, semesterFields)]
+    let replaceID = input["replace_semester_id"].string.trimmingCharacters(in: .whitespacesAndNewlines)
+    var changes: [AssistantPreparedChange] = []
+    if !replaceID.isEmpty {
+      let existing = try db.record("semesters", id: replaceID)
+      if !existing.isEmpty {
+        let version = try assistantVersion(existing)
+        changes.append(.init(
+          id: UUID().uuidString.lowercased(),
+          kind: "delete",
+          entity: WorkspaceEntity.semesters.rawValue,
+          targetID: replaceID,
+          fields: [:],
+          before: existing,
+          versions: [WorkspaceEntity.semesters.rawValue + "/" + replaceID: version],
+          associationNames: nil,
+          attachImage: nil
+        ))
+      }
+    }
+    changes.append(create(.semesters, semesterID, semesterFields))
     let courses = input["courses"].array
     try require((1...25).contains(courses.count), "请提供 1–25 门有明确上课安排的课程")
     var courseKeys = Set<[String]>()
     var occupied = Set<[Int64]>()
-    for entry in courses {
+    for (courseIdx, entry) in courses.enumerated() {
       let course = try object(entry, ["title", "teacher", "code", "meetings"], "课程信息格式不正确")
       let id = UUID().uuidString.lowercased()
       let name = try text(course[value: "title"], "课程名称")
       let teacher = try text(course[value: "teacher"], "教师", required: false)
       let code = try text(course[value: "code"], "课程编号", required: false)
       try require(courseKeys.insert([name, code]).inserted, "课程重复，请把同一门课的上课安排合在一起")
-      changes.append(create(.courses, id, ["semester_id": .string(semesterID), "title": .string(name),
-        "teacher": .string(teacher), "code": .string(code), "status": .string("active")]))
+      let paletteHex = CoursePalette.swatches[courseIdx % CoursePalette.swatches.count].hex
+      changes.append(create(.courses, id, [
+        "semester_id": .string(semesterID), "title": .string(name),
+        "teacher": .string(teacher), "code": .string(code),
+        "color": .string(paletteHex), "status": .string("active"),
+      ]))
       let meetings = course[value: "meetings"].array
       try require((1...14).contains(meetings.count), "请补充「\(name)」的星期、节次和教学周")
       for entry in meetings {
@@ -133,13 +244,17 @@ extension WorkspaceEngine {
     // Exercise the same normal commands against the complete plan and roll back every change.
     do {
       try db.transaction {
-        try requireNewSemester(semesterFields)
+        try requireNewSemester(semesterFields, ignoringID: replaceID)
         for change in changes {
           guard let entity = WorkspaceEntity(rawValue: change.entity) else { throw WorkBenchError("课表类型不正确") }
-          let fields = Dictionary(uniqueKeysWithValues: change.fields.compactMap { key, value in
-            ItemField(rawValue: key).map { ($0, value) }
-          })
-          _ = try perform(.create(entity, id: change.targetID, fields: fields), now: now)
+          if change.kind == "delete" {
+            _ = try perform(.delete(entity, id: change.targetID), now: now)
+          } else {
+            let fields = Dictionary(uniqueKeysWithValues: change.fields.compactMap { key, value in
+              ItemField(rawValue: key).map { ($0, value) }
+            })
+            _ = try perform(.create(entity, id: change.targetID, fields: fields), now: now)
+          }
         }
         throw TimetableValidation.rollback
       }

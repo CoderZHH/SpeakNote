@@ -28,6 +28,15 @@ import Observation
     return result
   }
 }
+public enum WorkspaceUIAction: Equatable, Sendable {
+  case openToday
+  case openNotes
+  case openGlobalSearch
+  case newTask
+  case newNote
+  case newSpace
+}
+
 @MainActor @Observable public final class AppSession {
   public let role: AppRole
   public private(set) var workspace: WorkspaceStore?
@@ -39,6 +48,7 @@ import Observation
   public var backupStatus = ""
   public private(set) var syncing = false
   public var foundSpaces: [JSONValue] = []
+  public var requestedAction: WorkspaceUIAction?
   let thoughtEditing = ThoughtEditing()
   @ObservationIgnored let reminders = WorkspaceReminders()
   var taskReminderIssue: String? { reminders.issue }

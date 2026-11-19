@@ -1,13 +1,21 @@
 import Foundation
 
 extension WorkspaceEngine {
-  func startFocus(taskID: String?, now: Date) throws -> CommandResult {
+  func startFocus(taskID: String?, goalSeconds: Int? = nil, now: Date) throws -> CommandResult {
     if let taskID {
       try require(try exists(.tasks, taskID).text("status") == "todo", "请先恢复任务，再开始专注")
+    }
+    if let goalSeconds {
+      try require((0...43200).contains(goalSeconds), "目标时长需在 0–12 小时之间")
     }
     let task = taskID.map(JSONValue.string) ?? .null
     let running = try db.one("SELECT * FROM focus_sessions WHERE status='running'")
     if !running.isEmpty && running[value: "task_id"] == task {
+      if let goalSeconds {
+        try db.update(
+          "focus_sessions", id: running.identifier,
+          ["goal_seconds": .integer(Int64(goalSeconds))])
+      }
       return CommandResult(id: running.identifier, alreadyRunning: true)
     }
     try pauseFocus(now: now)
@@ -17,22 +25,29 @@ extension WorkspaceEngine {
     let id: String
     if !old.isEmpty {
       id = old.identifier
-      try db.update(
-        "focus_sessions", id: id,
-        ["status": .string("running"), "active_since": .string(Clock.stamp(now))])
+      var patch: Record = ["status": .string("running"), "active_since": .string(Clock.stamp(now))]
+      if let goalSeconds { patch["goal_seconds"] = .integer(Int64(goalSeconds)) }
+      try db.update("focus_sessions", id: id, patch)
     } else {
       id = UUID().uuidString.lowercased()
       try db.insert(
         "focus_sessions",
         [
           "id": .string(id), "task_id": task, "started_at": .string(Clock.stamp(now)),
-          "active_since": .string(Clock.stamp(now)), "goal_seconds": .integer(0),
+          "active_since": .string(Clock.stamp(now)),
+          "goal_seconds": .integer(Int64(max(0, goalSeconds ?? 0))),
           "status": .string("running"), "untracked_seconds": .integer(0),
         ])
     }
     try db.insert(
       "focus_intervals",
       ["id": .id(), "focus_id": .string(id), "started_at": .string(Clock.stamp(now))])
+    return CommandResult(id: id)
+  }
+  func updateFocusGoal(id: String, goalSeconds: Int) throws -> CommandResult {
+    _ = try exists(.focusSessions, id)
+    try require((0...43200).contains(goalSeconds), "目标时长需在 0–12 小时之间")
+    try db.update("focus_sessions", id: id, ["goal_seconds": .integer(Int64(goalSeconds))])
     return CommandResult(id: id)
   }
   func pauseFocus(now: Date) throws {

@@ -12,9 +12,10 @@ import WorkBenchKit
     @State private var session = AppSession(role: .workbench)
   #endif
   #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
     private let updater = SPUStandardUpdaterController(
       startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-    @State private var focusStatusItem = FocusStatusItemController()
+    @State private var focusStatusItem = FocusStatusItemController(persistent: true)
   #endif
   var body: some Scene {
     WindowGroup("随口记", id: "workbench") {
@@ -30,6 +31,37 @@ import WorkBenchKit
       .commands {
         CommandGroup(after: .appInfo) {
           CheckForUpdatesButton(updater: updater.updater)
+        }
+        CommandGroup(replacing: .newItem) {
+          Button("新建任务…") {
+            openWindow(id: "workbench")
+            session.requestedAction = .newTask
+          }
+          .keyboardShortcut("n", modifiers: [.command])
+
+          Button("新建随手记…") {
+            openWindow(id: "workbench")
+            session.requestedAction = .newNote
+          }
+          .keyboardShortcut("n", modifiers: [.command, .shift])
+
+          Button("新建空间…") {
+            openWindow(id: "workbench")
+            session.requestedAction = .newSpace
+          }
+          .keyboardShortcut("n", modifiers: [.command, .option])
+
+          Divider()
+
+          Button("全局搜索…") {
+            openWindow(id: "workbench")
+            session.requestedAction = .openGlobalSearch
+          }
+          .keyboardShortcut("k", modifiers: [.command])
+
+          Button("打开菜单栏快捷面板") {
+            focusStatusItem.togglePanel()
+          }
         }
       }
     #endif

@@ -42,7 +42,7 @@ enum RecordMerge {
     var handled = Set<String>()
     let focus = fields["elapsed_seconds"] != nil
     let groups = [
-      ["project_id", "learning_id", "course_id"],
+      ["project_id", "learning_id", "course_id", "collection_id"],
       ["planned_date", "start_time", "end_time", "reminder_enabled", "reminder_at"],
       focus ? ["status", "active_since", "untracked_seconds"] : ["status", "completed_at", "abandoned_at"],
       fields["weekday"] != nil ? ["weekday", "weeks", "period_start", "period_end", "room"] : [],

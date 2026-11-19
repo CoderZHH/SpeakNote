@@ -125,7 +125,8 @@ struct WorkspaceConflictReview: View {
       formatter.dateFormat = "yyyy年M月d日 HH:mm"
       return formatter.string(from: date)
     }
-    if field.hasSuffix("_id"), let entity = ["project_id": WorkspaceEntity.projects,
+    if field.hasSuffix("_id"), let entity = ["space_id": WorkspaceEntity.spaces,
+      "collection_id": .collections, "project_id": .projects,
       "learning_id": .learning, "course_id": .courses, "source_note_id": .notes,
       "semester_id": .semesters, "task_id": .tasks, "note_id": .notes, "parent_id": .lessons,
       "account_id": .accounts][field], let item = session.workspace?.snapshot.item(entity, value.string)
@@ -140,6 +141,7 @@ struct WorkspaceConflictReview: View {
     "created_at": "创建时间", "planned_date": "安排日期", "due_date": "截止日期",
     "start_time": "开始时间", "end_time": "结束时间", "reminder_enabled": "提醒", "reminder_at": "提醒时间",
     "importance": "重要程度", "priority": "优先级", "important": "重要标记", "estimate": "预计时长",
+    "space_id": "空间", "collection_id": "卡片", "symbol": "图标",
     "project_id": "项目", "learning_id": "学习", "course_id": "课程", "source_note_id": "来源记录",
     "semester_id": "学期", "task_id": "任务", "note_id": "记录", "parent_id": "上级步骤",
     "account_id": "账号", "tags": "标签", "day": "日期", "teacher": "教师", "code": "课程编号",

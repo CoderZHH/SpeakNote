@@ -42,6 +42,7 @@ public struct FocusPresentation: Equatable, Sendable {
       timer: .init(
         title: title, accumulatedSeconds: focus.fields.integer("elapsed_seconds"),
         activeSince: try? Clock.parse(focus.fields.text("active_since")),
-        isRunning: focus.status == "running"))
+        isRunning: focus.status == "running",
+        goalSeconds: focus.fields.integer("goal_seconds")))
   }
 }

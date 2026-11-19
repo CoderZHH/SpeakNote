@@ -8,9 +8,9 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
 APPS = {
-    "WorkBenchMac": ("SpeakNote.app", "io.github.coderzhh.workbenchpreview", "SpeakNote"),
-    "WorkBenchIOS": ("WorkBench.app", "io.github.coderzhh.workbenchpreview.ios", "WorkBench"),
-    "PhotoAssistant": ("PhotoAssistant.app", "io.github.coderzhh.workbenchpreview.photo", "拍照助手"),
+    "WorkBenchMac": ("SpeakNote.app", "io.github.coderzhh.speaknote", "SpeakNote"),
+    "WorkBenchIOS": ("WorkBench.app", "io.github.coderzhh.speaknote.ios", "WorkBench"),
+    "PhotoAssistant": ("PhotoAssistant.app", "io.github.coderzhh.speaknote.photo", "拍照助手"),
 }
 
 class ConfigurationError(ValueError):

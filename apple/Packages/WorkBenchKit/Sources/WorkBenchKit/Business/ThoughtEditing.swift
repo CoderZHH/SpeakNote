@@ -71,6 +71,13 @@ func thoughtTags(_ item: WorkspaceItem) -> [String] {
     buffers[id]?.tags = normalized
     enqueue(id: id, store: store)
   }
+  func stageDay(id: String, day: String, store: WorkspaceStore) {
+    guard buffers[id] != nil, buffers[id]?.day != day else { return }
+    buffers[id]?.day = day
+    if buffers[id]?.persisted == true || !(buffers[id]?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+      enqueue(id: id, store: store)
+    }
+  }
   private func enqueue(id: String, store: WorkspaceStore) {
     buffers[id]?.dirty = true
     jobs[id]?.cancel()
@@ -102,7 +109,9 @@ func thoughtTags(_ item: WorkspaceItem) -> [String] {
       }
       do {
         let fields: [ItemField: JSONValue] = [
-          .content: .string(buffer.text), .tags: .array(buffer.tags.map(JSONValue.string)),
+          .content: .string(buffer.text),
+          .tags: .array(buffer.tags.map(JSONValue.string)),
+          .day: .string(buffer.day),
         ]
         let result: CommandResult
         if buffer.persisted {
@@ -112,9 +121,7 @@ func thoughtTags(_ item: WorkspaceItem) -> [String] {
               expectedThought: buffer.baseline))
         } else {
           result = try await store.perform(
-            .create(
-              .reflections, id: id,
-              fields: fields.merging([.day: .string(buffer.day)]) { _, value in value }))
+            .create(.reflections, id: id, fields: fields))
         }
         guard buffers[id] != nil else { return }
         buffers[id]?.persisted = true

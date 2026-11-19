@@ -10,7 +10,11 @@ struct AssistantPreparedPlan: Codable, Sendable, Identifiable {
     let names = [
       "title": "名称", "content": "内容", "notes": "备注", "remark": "备注", "status": "状态",
       "planned_date": "计划日期", "due_date": "截止日期", "start_time": "开始", "end_time": "结束",
-      "importance": "重要程度", "course_id": "课程", "project_id": "项目", "learning_id": "学习",
+      "importance": "重要程度", "space_id": "空间", "collection_id": "卡片",
+      "semester_id": "学期", "first_monday": "第一周周一", "weeks": "周数",
+      "teacher": "教师", "code": "班号", "room": "教室",
+      "weekday": "星期", "period_start": "起始节", "period_end": "结束节",
+      "course_id": "课程", "project_id": "项目", "learning_id": "学习",
     ]
     let states = ["todo": "待办", "done": "已完成", "abandoned": "放弃", "inbox": "收件箱",
       "processed": "已处理", "archived": "归档"]
@@ -50,6 +54,7 @@ struct AssistantPreparedChange: Codable, Sendable, Identifiable {
     case "notes": .note(targetID)
     case "projects": .project(targetID)
     case "learning": .learning(targetID)
+    case "collections": .collection(targetID)
     default: nil
     }
   }
@@ -62,12 +67,14 @@ struct AssistantPreparedChange: Codable, Sendable, Identifiable {
     switch kind {
     case "remember": "记住偏好"
     case "forget": "忘记偏好"
-    case "delete": "删除任务"
+    case "delete": "删除" + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
     case "start_focus": "开始专注"
     case "create": "新增" + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
     default:
       switch fields.text("status") {
-      case "done": "完成" + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
+      case "done":
+        (entity == "courses" ? "结课" : "完成") + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
+      case "paused": "暂停" + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
       case "archived": "归档随手记"
       case "abandoned": "放弃任务"
       default: "更新" + (AssistantContract.Entity(rawValue: entity)?.label ?? "事项")
@@ -112,14 +119,21 @@ extension WorkspaceEngine {
           entity = "tasks"
           id = focus.text("task_id")
         }
-        guard ["tasks", "notes", "projects", "learning", "courses"].contains(entity) else { continue }
+        guard [
+          "spaces", "collections", "semesters", "courses", "course_meetings",
+          "tasks", "notes", "projects", "learning",
+        ].contains(entity) else { continue }
         guard !id.isEmpty else { continue }
         guard seen.insert(entity + "/" + id).inserted else { continue }
         let current = try assistantRecord(entity: entity, id: id)
         guard !current.isEmpty else { continue }
         var visible = try assistantVisible(current, entity: entity)
         var fields = visible["fields"].object.filter {
-          ["id", "title", "content", "status", "planned_date", "due_date", "course_id", "project_id", "learning_id"].contains($0.key)
+          [
+            "id", "title", "content", "status", "planned_date", "due_date",
+            "first_monday", "weeks", "semester_id", "weekday", "period_start", "period_end", "room",
+            "space_id", "collection_id", "course_id", "project_id", "learning_id",
+          ].contains($0.key)
         }
         if let content = fields["content"] { fields["content"] = .string(String(content.string.prefix(160))) }
         visible["fields"] = .object(fields)
@@ -153,7 +167,9 @@ extension WorkspaceEngine {
       predicates.append("instr(lower(\(quote(title))),lower(?))>0")
       values.append(.string(query))
     }
-    for field in ["status", "planned_date", "course_id", "project_id", "learning_id"] where !arguments[field].isNull {
+    for field in [
+      "status", "planned_date", "space_id", "collection_id", "semester_id", "course_id", "project_id", "learning_id",
+    ] where !arguments[field].isNull {
       try require(try db.columns(table).contains(field), "此类型不支持该筛选")
       predicates.append("\(quote(field))=?")
       values.append(arguments[field])
@@ -186,8 +202,11 @@ extension WorkspaceEngine {
     try require(!row.isEmpty, "事项已不存在，请重新查询")
     let allowed: Set<String> = [
       "id", "title", "content", "notes", "remark", "status", "planned_date", "due_date",
-      "start_time", "end_time", "importance", "course_id", "project_id", "learning_id",
-      "teacher", "semester_id", "created_at", "completed_at", "description", "reminder_enabled", "reminder_at",
+      "start_time", "end_time", "importance", "space_id", "collection_id", "symbol", "color",
+      "legacy_entity", "course_id", "project_id", "learning_id",
+      "teacher", "code", "semester_id", "first_monday", "weeks", "periods",
+      "weekday", "period_start", "period_end", "room",
+      "created_at", "completed_at", "description", "reminder_enabled", "reminder_at",
     ]
     let longText: Set<String> = ["content", "notes", "remark", "description"]
     var fields = row.filter { allowed.contains($0.key) && (!compact || !longText.contains($0.key)) }
@@ -236,9 +255,11 @@ extension WorkspaceEngine {
       throw WorkBenchError("每次请提供 1–10 项变更")
     }
 
-    let associationTypes: [String: AssistantContract.Entity] = [
-      "course_id": .courses, "project_id": .projects, "learning_id": .learning,
+    let taskAssociationTypes: [String: AssistantContract.Entity] = [
+      "course_id": .courses, "project_id": .projects,
+      "learning_id": .learning, "collection_id": .collections,
     ]
+    let taskAssociationKeys = Array(taskAssociationTypes.keys)
     var changes: [AssistantPreparedChange] = []
     var targets = Set<String>()
     var references: [String: (AssistantContract.Entity, String)] = [:]
@@ -302,8 +323,50 @@ extension WorkspaceEngine {
       case .create, .update:
         try require(!fields.isEmpty || (action == .update && attachImage), "请提供要修改的内容")
         var deferredAssociation = false
-        if !Set(fields.keys).isDisjoint(with: associationTypes.keys) {
-          for (field, parent) in associationTypes {
+        if entity == .collections, let rawSpace = fields["space_id"], !rawSpace.isNull {
+          let spaceKey = try resolve(rawSpace.string, for: .spaces)
+          try require(!spaceKey.isEmpty, "关联空间无效")
+          fields["space_id"] = .string(spaceKey)
+          if rawSpace.string.hasPrefix("@") {
+            deferredAssociation = true
+            associationNames["space_id"] = changes.first { $0.targetID == spaceKey }?.fields.text("title")
+          } else {
+            let row = try assistantRecord(entity: "spaces", id: spaceKey)
+            try require(!row.isEmpty, "关联空间已不存在")
+            versions["spaces/" + spaceKey] = try assistantVersion(row)
+            associationNames["space_id"] = row.text("title")
+          }
+        }
+        if entity == .courses, let rawSemester = fields["semester_id"], !rawSemester.isNull {
+          let semKey = try resolve(rawSemester.string, for: .semesters)
+          try require(!semKey.isEmpty, "关联学期无效")
+          fields["semester_id"] = .string(semKey)
+          if rawSemester.string.hasPrefix("@") {
+            deferredAssociation = true
+            associationNames["semester_id"] = changes.first { $0.targetID == semKey }?.fields.text("title")
+          } else {
+            let row = try assistantRecord(entity: "semesters", id: semKey)
+            try require(!row.isEmpty, "关联学期已不存在")
+            versions["semesters/" + semKey] = try assistantVersion(row)
+            associationNames["semester_id"] = row.text("title")
+          }
+        }
+        if entity == .courseMeetings, let rawCourse = fields["course_id"], !rawCourse.isNull {
+          let courseKey = try resolve(rawCourse.string, for: .courses)
+          try require(!courseKey.isEmpty, "关联课程无效")
+          fields["course_id"] = .string(courseKey)
+          if rawCourse.string.hasPrefix("@") {
+            deferredAssociation = true
+            associationNames["course_id"] = changes.first { $0.targetID == courseKey }?.fields.text("title")
+          } else {
+            let row = try assistantRecord(entity: "courses", id: courseKey)
+            try require(!row.isEmpty, "关联课程已不存在")
+            versions["courses/" + courseKey] = try assistantVersion(row)
+            associationNames["course_id"] = row.text("title")
+          }
+        }
+        if [.tasks, .notes].contains(entity), !Set(fields.keys).isDisjoint(with: taskAssociationTypes.keys) {
+          for (field, parent) in taskAssociationTypes {
             let value = fields[value: field]
             if value.isNull { fields[field] = .null; continue }
             let key = try resolve(value.string, for: parent)
@@ -341,9 +404,18 @@ extension WorkspaceEngine {
         let type = WorkspaceEntity(rawValue: entity.rawValue)!
         let candidate = before.merging(fields) { _, new in new }
         let normalized = try validate(type, candidate, creating: creating, checkAssociations: !deferredAssociation)
-        if deferredAssociation {
-          try require(associationTypes.keys.filter { !candidate[value: $0].isNull }.count <= 1,
-            "只能关联一个项目、学习或课程")
+        if deferredAssociation && [.tasks, .notes].contains(type) {
+          try require(taskAssociationKeys.filter { !candidate[value: $0].isNull }.count <= 1,
+            "只能关联一个空间卡片、项目、学习或课程")
+        }
+        if type == .collections {
+          try require(!candidate.text("space_id").isEmpty, "请指定卡片所属的空间")
+        }
+        if type == .courses {
+          try require(!candidate.text("semester_id").isEmpty, "请指定课程所属的学期")
+        }
+        if type == .courseMeetings {
+          try require(!candidate.text("course_id").isEmpty, "请指定排课所属的课程")
         }
         if fields["reminder_enabled"] == .integer(1) {
           try require(normalized["reminder_enabled"] == .integer(1) && normalized[value: "status"] != .string("done")
@@ -399,8 +471,9 @@ extension WorkspaceEngine {
         try require(try Clock.parse(stored.text("expires_at")) > now, "操作预览已过期，请重新准备")
         let plan = try JSONDecoder().decode(
           AssistantPreparedPlan.self, from: Data(stored.text("payload").utf8))
-        if let semester = plan.changes.first, semester.entity == "semesters" {
-          try requireNewSemester(semester.fields)
+        let replaceID = plan.changes.first(where: { $0.entity == "semesters" && $0.kind == "delete" })?.targetID
+        if let semester = plan.changes.first(where: { $0.entity == "semesters" && $0.kind == "create" }) {
+          try requireNewSemester(semester.fields, ignoringID: replaceID)
         }
         for change in plan.changes {
           for (key, expected) in change.versions {
@@ -429,7 +502,8 @@ extension WorkspaceEngine {
             let taskID = change.targetID.isEmpty ? nil : change.targetID
             savedID = try perform(.startFocus(taskID: taskID), now: now).id ?? ""
           case "delete":
-            _ = try perform(.delete(.tasks, id: change.targetID), now: now)
+            let entity = WorkspaceEntity(rawValue: change.entity)!
+            _ = try perform(.delete(entity, id: change.targetID), now: now)
           default:
             let entity = WorkspaceEntity(rawValue: change.entity)!
             var fields: [ItemField: JSONValue] = [:]

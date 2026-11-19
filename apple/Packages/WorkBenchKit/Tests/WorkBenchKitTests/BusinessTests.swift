@@ -344,7 +344,7 @@ let testNow = Date(timeIntervalSince1970: 1_792_886_400)
   let backup = f.directory.appendingPathComponent("copy.sqlite")
   try db.db.backup(to: backup)
   #expect(try SQLite(backup, readOnly: true).rows("SELECT * FROM tasks").count == 1)
-  try db.db.script("PRAGMA user_version=22")
+  try db.db.script("PRAGMA user_version=23")
   #expect(throws: (any Error).self) { try WorkspaceMigration.run(db.db) }
   #expect(try db.db.rows("SELECT * FROM tasks").count == 1)
 }
@@ -400,7 +400,7 @@ let testNow = Date(timeIntervalSince1970: 1_792_886_400)
   try WorkspaceMigration.run(db.db)
   #expect(try db.db.record("tasks", id: "original-task-id").integer("importance") == 1)
   #expect(try db.db.rows("PRAGMA foreign_key_check").isEmpty)
-  #expect(try db.db.one("PRAGMA user_version").values.first == .integer(21))
+  #expect(try db.db.one("PRAGMA user_version").values.first == .integer(22))
 }
 @Test func metricImportPreservesNullsAndUpdatesSameCaptureOnly() throws {
   let f = try Fixture()
@@ -453,10 +453,17 @@ let testNow = Date(timeIntervalSince1970: 1_792_886_400)
       ).map { row in
         var fields = row
         if table == "tasks" {
-          // The frozen contract predates reminders. Check the additive default
+          // The frozen contract predates reminders and custom collections. Check additive defaults
           // separately while comparing every original field unchanged.
           #expect(fields.removeValue(forKey: "reminder_enabled") == .integer(0))
           #expect(fields.removeValue(forKey: "reminder_at") == .null)
+          #expect(fields.removeValue(forKey: "collection_id") == .null)
+        }
+        if table == "notes" {
+          #expect(fields.removeValue(forKey: "collection_id") == .null)
+        }
+        if table == "projects" {
+          #expect(fields.removeValue(forKey: "position") == .integer(0))
         }
         for (key, value) in row where key == "id" || key.hasSuffix("_id") {
           if let replacement = identifiers[value.string] { fields[key] = .string(replacement) }

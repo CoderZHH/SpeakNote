@@ -3,20 +3,62 @@ import SwiftUI
 struct TreeMoveMenu: View {
   let item: WorkspaceItem
   @Environment(AppSession.self) private var session
-  var body: some View {
-    Menu("移动到", systemImage: "folder") {
-      ForEach(
-        (session.workspace?.snapshot[.learning] ?? []).filter {
-          $0.id != item.id && $0.status != "done"
-        }
-      ) { destination in
-        Button(destination.title) { move(target: destination, placement: .inside) }
+  private var snapshot: WorkspaceSnapshot { session.workspace?.snapshot ?? .init() }
+  private var siblingTargets: [WorkspaceItem] {
+    switch item.entity {
+    case .collections:
+      return snapshot[.collections].filter {
+        $0.id != item.id && $0.status != "done" && $0[.spaceID] == item[.spaceID]
       }
-      if let root = session.workspace?.snapshot[.learning].first(where: {
-        $0[.parentID].isNull && $0.id != item.id
-      }) {
-        if item.entity == .learning && !item[.parentID].isNull {
-          Button("移到顶层") { move(target: root, placement: .after) }
+    case .projects:
+      return snapshot[.projects].filter { $0.id != item.id && $0.status != "done" }
+    case .learning:
+      return snapshot[.learning].filter { $0.id != item.id && $0.status != "done" }
+    case .lessons:
+      if !item[.collectionID].isNull {
+        let current = snapshot.item(.collections, item[.collectionID].string)
+        let spaceID = current?[.spaceID] ?? .null
+        return snapshot[.collections].filter {
+          $0.status != "done" && $0[.spaceID] == spaceID
+        }
+      }
+      return snapshot[.learning].filter { $0.status != "done" }
+    default:
+      return []
+    }
+  }
+
+  var body: some View {
+    if !siblingTargets.isEmpty {
+      Menu("移动与排序", systemImage: "arrow.up.arrow.down") {
+        if [.projects, .collections, .learning].contains(item.entity) {
+          let ordered = siblingTargets
+          if let first = ordered.first {
+            Button("移到最前", systemImage: "arrow.up.to.line") {
+              move(target: first, placement: .before)
+            }
+          }
+          if let last = ordered.last {
+            Button("移到最后", systemImage: "arrow.down.to.line") {
+              move(target: last, placement: .after)
+            }
+          }
+        }
+        if [.learning, .collections, .lessons].contains(item.entity) {
+          Divider()
+          ForEach(siblingTargets) { destination in
+            Button(
+              item.entity == .lessons
+                ? "移入「\(destination.title)」" : "作为「\(destination.title)」子项"
+            ) {
+              move(target: destination, placement: .inside)
+            }
+          }
+          if [.learning, .collections].contains(item.entity), !item[.parentID].isNull,
+            let root = siblingTargets.first(where: { $0[.parentID].isNull })
+          {
+            Button("移回顶层") { move(target: root, placement: .after) }
+          }
         }
       }
     }

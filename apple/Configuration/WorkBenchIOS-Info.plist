@@ -27,10 +27,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.github.coderzhh.workbenchpreview.focus</string>
+			<string>io.github.coderzhh.speaknote.focus</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>workbench-preview</string>
+				<string>speaknote</string>
 			</array>
 		</dict>
 	</array>

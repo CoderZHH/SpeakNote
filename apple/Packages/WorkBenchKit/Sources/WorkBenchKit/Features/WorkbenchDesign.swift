@@ -79,10 +79,15 @@ enum WorkbenchDesign {
   static let radius: CGFloat = 12
   static let fieldRadius: CGFloat = 10
   enum Typography {
-    static let detailTitle = Font.title2.weight(.semibold)
-    static let title = Font.title3.weight(.semibold)
-    static let control = Font.subheadline
-    static let body = Font.body
+    static let detailTitle = Font.system(size: 22, weight: .semibold, design: .default)
+    static let title = Font.system(size: 18, weight: .medium, design: .default)
+    static let control = Font.system(size: 13.5, weight: .regular, design: .default)
+    #if os(macOS)
+      static let body = Font.system(size: 14.5, weight: .regular, design: .default)
+    #else
+      static let body = Font.body
+    #endif
+    static let roundedDigit = Font.system(.caption, design: .rounded).monospacedDigit()
   }
   static var fieldBackground: Color { Color.primary.opacity(0.035) }
   static var selectionBackground: Color { Color.accentColor.opacity(0.09) }
@@ -163,7 +168,7 @@ struct WorkspaceSearch: View {
 struct WorkspacePanel<Content: View>: View {
   let title: String
   let symbol: String
-  let add: () -> Void
+  var add: (() -> Void)? = nil
   @ViewBuilder var content: Content
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -171,8 +176,11 @@ struct WorkspacePanel<Content: View>: View {
         Image(systemName: symbol).foregroundStyle(.secondary)
         Text(title).font(.headline)
         Spacer()
-        Button("添加" + title, systemImage: "plus") { add() }.labelStyle(.iconOnly).buttonStyle(
-          .borderless)
+        if let add {
+          Button("添加" + title, systemImage: "plus") { add() }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+        }
       }
       content
     }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -360,6 +368,181 @@ struct WorkspaceSubmitButtonStyle: ButtonStyle {
   }
 }
 
+/// Unified inline composer across Today, Notes, Space Cards, Courses, and Step Outlines.
+/// Return submits and keeps focus for rapid batch entry; Shift+Return inserts a newline;
+/// optional trailing detail button escalates to the full sheet carrying over the current draft.
+struct WorkspaceQuickComposer: View {
+  let prompt: String
+  @Binding var text: String
+  var saving = false
+  var submitLabel = "添加"
+  var inputIdentifier: String? = nil
+  var fieldIdentifier: String? = nil
+  var submitIdentifier: String? = nil
+  var detailLabel: String = "更多选项…"
+  var onExpandDetail: (() -> Void)? = nil
+  var externalFocus: FocusState<Bool>.Binding? = nil
+  let submit: (_ keepFocus: Bool) -> Void
+
+  @FocusState private var internalFocus: Bool
+
+  private var isFocused: Bool {
+    externalFocus?.wrappedValue ?? internalFocus
+  }
+
+  private func setFocused(_ active: Bool) {
+    if let externalFocus {
+      externalFocus.wrappedValue = active
+    } else {
+      internalFocus = active
+    }
+  }
+
+  private var canSubmit: Bool {
+    !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var body: some View {
+    WorkspaceComposerLayout {
+      HStack(alignment: .center, spacing: 6) {
+        Group {
+          if let externalFocus {
+            TextField(prompt, text: $text, axis: .vertical)
+              .focused(externalFocus)
+          } else {
+            TextField(prompt, text: $text, axis: .vertical)
+              .focused($internalFocus)
+          }
+        }
+        .textFieldStyle(.plain)
+        .lineLimit(1...6)
+        .workspaceKeyboardDone(when: isFocused) { setFocused(false) }
+        #if os(macOS)
+          .onKeyPress(.return, phases: .down) { press in
+            if press.modifiers.contains(.shift) { return .ignored }
+            if canSubmit && !saving { submit(true) }
+            return .handled
+          }
+          .onExitCommand { setFocused(false) }
+        #endif
+        .accessibilityIdentifier(inputIdentifier ?? "", isEnabled: inputIdentifier != nil)
+
+        if let onExpandDetail {
+          Button {
+            setFocused(false)
+            onExpandDetail()
+          } label: {
+            Image(systemName: "slider.horizontal.3")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .frame(width: 24, height: 24)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .help(detailLabel)
+          .accessibilityLabel(detailLabel)
+        }
+      }
+      .padding(.horizontal, WorkbenchDesign.Space.medium)
+      .padding(.vertical, 9)
+      .frame(maxWidth: .infinity, minHeight: WorkbenchDesign.controlHeight, alignment: .leading)
+      .background(
+        WorkbenchDesign.fieldBackground,
+        in: .rect(cornerRadius: WorkbenchDesign.fieldRadius)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: WorkbenchDesign.fieldRadius)
+          .strokeBorder(
+            isFocused ? Color.accentColor.opacity(0.55) : WorkbenchDesign.line,
+            lineWidth: 1
+          )
+      }
+      .accessibilityElement(children: .contain)
+      .accessibilityIdentifier(fieldIdentifier ?? "", isEnabled: fieldIdentifier != nil)
+
+      Button {
+        submit(false)
+      } label: {
+        if saving {
+          ProgressView().controlSize(.small)
+        } else {
+          Image(systemName: "plus")
+        }
+      }
+      .buttonStyle(WorkspaceSubmitButtonStyle())
+      .disabled(saving || !canSubmit)
+      .accessibilityLabel(submitLabel)
+      .accessibilityIdentifier(submitIdentifier ?? "", isEnabled: submitIdentifier != nil)
+    }
+  }
+}
+
+/// Shared card header used by Space Cards and Course Cards so icon badge, title,
+/// remarks popover and overflow menu share one exact visual and interaction rhythm.
+struct WorkspaceCardHeader<MenuItems: View, RemarksContent: View>: View {
+  let symbol: String
+  var symbolColor: Color = .secondary
+  let title: String
+  var subtitle: String = ""
+  let open: () -> Void
+  var hasRemarks: Bool = false
+  @Binding var showingRemarks: Bool
+  var showsRemarksButton: Bool = true
+  var menuIdentifier: String = ""
+  @ViewBuilder var remarksContent: RemarksContent
+  @ViewBuilder var menuItems: MenuItems
+
+  var body: some View {
+    HStack(alignment: .center, spacing: 10) {
+      Image(systemName: symbol)
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(symbolColor)
+        .frame(width: 28, height: 28)
+        .background(symbolColor.opacity(0.12), in: .rect(cornerRadius: 7, style: .continuous))
+
+      Button(action: open) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.headline)
+            .lineLimit(2)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+          if !subtitle.isEmpty {
+            Text(subtitle)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          }
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+
+      if showsRemarksButton {
+        Button(
+          "备注",
+          systemImage: hasRemarks ? "text.bubble.fill" : "text.bubble"
+        ) { showingRemarks.toggle() }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.borderless)
+          .foregroundStyle(hasRemarks ? Color.accentColor : .secondary)
+          .popover(isPresented: $showingRemarks) {
+            ScrollView {
+              remarksContent.padding(WorkbenchDesign.Space.section)
+            }
+            .frame(width: 310, height: 240)
+            .presentationCompactAdaptation(.popover)
+          }
+      }
+
+      WorkspaceMoreMenu {
+        menuItems
+      }
+      .accessibilityIdentifier(menuIdentifier, isEnabled: !menuIdentifier.isEmpty)
+    }
+  }
+}
+
 /// Reading details use section spacing instead of a separator under every label.
 struct WorkspaceDetailPage<Content: View>: View {
   var width: CGFloat = WorkbenchDesign.readingWidth
@@ -500,3 +683,119 @@ extension View {
     #endif
   }
 }
+
+/// Vector brand mark matching SpeakNote's AppIcon (dotted-capsule page frame + folded corner + 5-bar voice waveform).
+struct SpeakNoteBrandShape: Shape {
+  private static let capsules: [(x0: CGFloat, y0: CGFloat, x1: CGFloat, y1: CGFloat)] = [
+    // Left & right side bars
+    (69.0, 74.0, 81.0, 183.0),
+    (175.0, 96.0, 187.0, 183.0),
+    // Top 4 arch bars
+    (86.0, 62.0, 97.5, 86.0),
+    (103.5, 53.0, 115.0, 80.0),
+    (121.0, 48.0, 132.5, 80.0),
+    (138.0, 55.0, 149.5, 81.0),
+    // Center 5 voice waveform bars
+    (89.5, 121.0, 100.5, 141.0),
+    (106.0, 113.0, 117.0, 149.0),
+    (122.5, 102.0, 133.5, 160.0),
+    (139.0, 113.0, 150.0, 149.0),
+    (155.5, 121.0, 166.5, 141.0),
+    // Bottom 5 arch bars
+    (86.0, 173.0, 97.5, 193.0),
+    (104.0, 178.0, 115.5, 200.0),
+    (122.25, 178.0, 133.75, 206.0),
+    (140.5, 178.0, 152.0, 200.0),
+    (158.5, 173.0, 170.0, 193.0),
+  ]
+
+  func path(in rect: CGRect) -> Path {
+    let side = min(rect.width, rect.height)
+    guard side > 0 else { return Path() }
+    let ox = rect.midX - side * 0.5
+    let oy = rect.midY - side * 0.5
+    let span: CGFloat = 164.0
+    let baseX: CGFloat = 46.0
+    let baseY: CGFloat = 45.0
+
+    func map(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+      CGPoint(
+        x: ox + ((x - baseX) / span) * side,
+        y: oy + ((y - baseY) / span) * side
+      )
+    }
+
+    var path = Path()
+    for bar in Self.capsules {
+      let tl = map(bar.x0, bar.y0)
+      let br = map(bar.x1, bar.y1)
+      let r = CGRect(x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y)
+      let radius = min(r.width, r.height) * 0.5
+      path.addRoundedRect(in: r, cornerSize: CGSize(width: radius, height: radius), style: .continuous)
+    }
+
+    // Top-right folded dog-ear corner: (155, 60) -> (186.5, 91.5) -> (155, 91.5)
+    let pTop = map(155.0, 60.0)
+    let pRight = map(186.5, 91.5)
+    let pCorner = map(155.0, 91.5)
+    let innerRadius = (6.5 / span) * side
+    let tipRadius = (1.3 / span) * side
+
+    var corner = Path()
+    let midHyp = CGPoint(x: (pTop.x + pRight.x) * 0.5, y: (pTop.y + pRight.y) * 0.5)
+    corner.move(to: midHyp)
+    corner.addArc(tangent1End: pRight, tangent2End: pCorner, radius: tipRadius)
+    corner.addArc(tangent1End: pCorner, tangent2End: pTop, radius: innerRadius)
+    corner.addArc(tangent1End: pTop, tangent2End: pRight, radius: tipRadius)
+    corner.closeSubpath()
+    path.addPath(corner)
+
+    return path
+  }
+}
+
+struct SpeakNoteLogoBadge: View {
+  var size: CGFloat = 24
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+        .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.white)
+        .overlay {
+          RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+            .strokeBorder(
+              Color.primary.opacity(colorScheme == .dark ? 0.14 : 0.08),
+              lineWidth: max(0.5, size * 0.025)
+            )
+        }
+      SpeakNoteBrandShape()
+        .fill(.primary)
+        .padding(size * 0.14)
+    }
+    .frame(width: size, height: size)
+    .accessibilityHidden(true)
+  }
+}
+
+#if os(macOS)
+  import AppKit
+
+  enum SpeakNoteBrandMark {
+    static func menuBarImage(dimmed: Bool = false, description: String) -> NSImage {
+      let size = NSSize(width: 18, height: 18)
+      let image = NSImage(size: size, flipped: true) { rect in
+        let drawRect = rect.insetBy(dx: 0.75, dy: 0.75)
+        let cgPath = SpeakNoteBrandShape().path(in: drawRect).cgPath
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+        ctx.setFillColor(NSColor.black.withAlphaComponent(dimmed ? 0.55 : 1.0).cgColor)
+        ctx.addPath(cgPath)
+        ctx.fillPath()
+        return true
+      }
+      image.isTemplate = true
+      image.accessibilityDescription = description
+      return image
+    }
+  }
+#endif

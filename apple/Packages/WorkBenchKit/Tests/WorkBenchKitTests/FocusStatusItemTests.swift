@@ -33,5 +33,63 @@
         XCTAssertNil(item.menu)
       }
     }
+
+    @MainActor func testPersistentStatusItemStaysAvailableAndTearsDownPanelOnClose() throws {
+      try XCTSkipUnless(
+        ProcessInfo.processInfo.environment["WORKBENCH_UI_PROBE"] == "1", "独立菜单栏控件检查")
+      NSApplication.shared.setActivationPolicy(.accessory)
+      let controller = FocusStatusItemController(persistent: true)
+      let session = AppSession(role: .workbench)
+      defer { controller.stop() }
+
+      controller.update(nil, session: session)
+      let item = try XCTUnwrap(controller.statusItem)
+      XCTAssertEqual(item.button?.title, "")
+
+      let running = FocusPresentation(
+        id: "focus-1", taskID: nil,
+        timer: .init(title: "菜单栏专注", accumulatedSeconds: 125, activeSince: nil, isRunning: false))
+      controller.update(running, session: session)
+      XCTAssertTrue(controller.statusItem === item)
+      XCTAssertEqual(item.button?.title, "00:02:05")
+
+      controller.showPanel()
+      XCTAssertTrue(controller.isPanelVisible)
+      controller.closePanel()
+      XCTAssertFalse(controller.isPanelVisible)
+
+      controller.update(nil, session: session)
+      XCTAssertTrue(controller.statusItem === item)
+      XCTAssertEqual(item.button?.title, "")
+    }
+
+    @MainActor func testGlobalHotKeySerializationAndDisplayString() {
+      let def = GlobalHotKey.default
+      XCTAssertEqual(def.displayString, "⌥Space")
+      XCTAssertEqual(def.rawValue, "49:2048")
+      XCTAssertEqual(GlobalHotKey(rawValue: "49:2048"), def)
+      XCTAssertNil(GlobalHotKey(rawValue: "invalid"))
+
+      let ctrlSpace = GlobalHotKey(keyCode: 49, carbonModifiers: 4096)
+      XCTAssertEqual(ctrlSpace.displayString, "⌃Space")
+
+      let optCmdSpace = GlobalHotKey(keyCode: 49, carbonModifiers: 2048 | 256)
+      XCTAssertEqual(optCmdSpace.displayString, "⌥⌘Space")
+
+      let ctrlOptK = GlobalHotKey(keyCode: 40, carbonModifiers: 4096 | 2048)
+      XCTAssertEqual(ctrlOptK.displayString, "⌃⌥K")
+
+      for preset in GlobalHotKey.presets {
+        XCTAssertFalse(preset.hotKey.displayString.isEmpty)
+      }
+    }
+
+    @MainActor func testControllerUpdatesHotKeyAndAppearanceToolTip() {
+      let controller = FocusStatusItemController(persistent: true)
+      defer { controller.stop() }
+      let custom = GlobalHotKey(keyCode: 40, carbonModifiers: 4096 | 2048)
+      controller.setHotKey(enabled: false, hotKey: custom)
+      XCTAssertEqual(controller.currentHotKey, custom)
+    }
   }
 #endif

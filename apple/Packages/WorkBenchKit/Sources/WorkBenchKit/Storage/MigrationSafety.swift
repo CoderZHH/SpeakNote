@@ -17,10 +17,10 @@ public struct DataLocation: Sendable {
   public static func current(role: AppRole) throws -> Self {
     #if os(macOS)
       let env = ProcessInfo.processInfo.environment
-      if let path = env["WORKBENCH_DB_PATH"] {
+      if let path = env["SPEAKNOTE_DB_PATH"] ?? env["WORKBENCH_DB_PATH"] {
         return .init(directory: URL(fileURLWithPath: path).deletingLastPathComponent(), role: role)
       }
-      if let root = env["WORKBENCH_WORKSPACE_ROOT"] {
+      if let root = env["SPEAKNOTE_WORKSPACE_ROOT"] ?? env["WORKBENCH_WORKSPACE_ROOT"] {
         return .init(
           directory: URL(fileURLWithPath: root).appendingPathComponent("data", isDirectory: true),
           role: role)
@@ -28,7 +28,7 @@ public struct DataLocation: Sendable {
     #endif
     let support = try FileManager.default.url(
       for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-    return .init(directory: support.appendingPathComponent("WorkBench Preview"), role: role)
+    return .init(directory: support.appendingPathComponent("SpeakNote"), role: role)
   }
 }
 // Immutable file descriptor; released only by deinit after its sole owner is dropped.
@@ -36,11 +36,11 @@ final class WriterLease: @unchecked Sendable {
   let descriptor: Int32
   init(directory: URL) throws {
     descriptor = Darwin.open(
-      directory.appendingPathComponent(".workbench-writer.lock").path, O_CREAT | O_RDWR, 0o600)
+      directory.appendingPathComponent(".speaknote-writer.lock").path, O_CREAT | O_RDWR, 0o600)
     guard descriptor >= 0 else { throw WorkBenchError("无法锁定工作区") }
     if flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
       Darwin.close(descriptor)
-      throw WorkBenchError("工作区正被另一份 WorkBench 使用，请先退出它")
+      throw WorkBenchError("工作区正被另一份随口记使用，请先退出它")
     }
     #if os(macOS)
       let bundle = Bundle.main.bundleIdentifier
@@ -50,7 +50,7 @@ final class WriterLease: @unchecked Sendable {
         })
       {
         Darwin.close(descriptor)
-        throw WorkBenchError("请先退出原版 WorkBench，避免同时修改同一工作区")
+        throw WorkBenchError("请先退出已运行的随口记，避免同时修改同一工作区")
       }
     #endif
   }

@@ -34,13 +34,13 @@
 
 ## 更新
 
-打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.5 或更早版本先从[官方下载页](https://github.com/CoderZHH/SpeakNote-Releases#readme)下载并覆盖安装一次。
+打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.6 或更早版本先从[官方下载页](https://github.com/CoderZHH/SpeakNote-Releases#readme)下载并覆盖安装一次。
 
 ## 数据和备份
 
 工作区保存在这台 Mac，预览版未启用 iCloud。DeepSeek Key 保存在 macOS 钥匙串。使用微信助手时，相关消息、附件内容和工作区上下文可能会发送给 DeepSeek。
 
-「设置」支持导出和导入工作区记录，也可以手动导入 [示例工作区](docs/examples/workbench-demo-data.json)。JSON 导出不包含附件；要完整备份，请退出应用后备份整个数据目录，默认位于 `~/Library/Application Support/WorkBench Preview/`。
+「设置」支持导出和导入工作区记录，也可以手动导入 [示例工作区](docs/examples/workbench-demo-data.json)。JSON 导出不包含附件；要完整备份，请退出应用后备份整个数据目录，默认位于 `~/Library/Application Support/SpeakNote/`。
 
 ## 从源码运行
 

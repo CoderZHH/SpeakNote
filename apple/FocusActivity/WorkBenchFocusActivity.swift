@@ -21,7 +21,7 @@ struct WorkBenchFocusActivity: Widget {
         FocusTimerText(state: context.state).font(.title2.weight(.medium)).fixedSize()
       }.padding(16).activityBackgroundTint(.black.opacity(0.85))
         .activitySystemActionForegroundColor(.white)
-        .foregroundStyle(.white).widgetURL(URL(string: "workbench-preview://focus"))
+        .foregroundStyle(.white).widgetURL(URL(string: "speaknote://focus"))
     } dynamicIsland: { context in
       DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
@@ -43,7 +43,7 @@ struct WorkBenchFocusActivity: Widget {
         FocusTimerText(state: context.state).font(.caption2).frame(width: 62)
       } minimal: {
         Image(systemName: context.state.isRunning ? "timer" : "pause.fill").foregroundStyle(.cyan)
-      }.widgetURL(URL(string: "workbench-preview://focus")).keylineTint(.cyan)
+      }.widgetURL(URL(string: "speaknote://focus")).keylineTint(.cyan)
     }
   }
 }

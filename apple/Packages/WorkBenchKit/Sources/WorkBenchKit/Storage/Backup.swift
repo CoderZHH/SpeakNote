@@ -52,8 +52,8 @@ extension WorkspaceEngine {
           }
           if try !db.record(entity.rawValue, id: id).isEmpty { continue }
           if [
-            .tasks, .notes, .projects, .learning, .reflections, .accounts, .courses, .semesters,
-            .courseMeetings,
+            .spaces, .collections, .tasks, .notes, .projects, .learning, .reflections, .accounts,
+            .courses, .semesters, .courseMeetings,
           ].contains(entity) {
             fields = try validate(entity, fields, creating: true)
           }
@@ -68,6 +68,35 @@ extension WorkspaceEngine {
           try db.insert(entity.rawValue, fields)
           count += 1
         }
+      }
+      let now = JSONValue.string(Clock.stamp())
+      if try db.one("SELECT count(*) AS n FROM projects").integer("n") > 0,
+        try db.one("SELECT count(*) AS n FROM spaces WHERE legacy_entity='projects'").integer("n") == 0
+      {
+        let pos = try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM spaces").integer("n")
+        try db.insert(
+          "spaces",
+          [
+            "id": .string("space-legacy-projects"), "title": .string("项目"),
+            "symbol": .string("folder"), "color": .string("blue"),
+            "allows_lessons": .integer(0), "legacy_entity": .string("projects"),
+            "position": .integer(pos), "status": .string("active"),
+            "created_at": now, "updated_at": now,
+          ])
+      }
+      if try db.one("SELECT count(*) AS n FROM learning").integer("n") > 0,
+        try db.one("SELECT count(*) AS n FROM spaces WHERE legacy_entity='learning'").integer("n") == 0
+      {
+        let pos = try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM spaces").integer("n")
+        try db.insert(
+          "spaces",
+          [
+            "id": .string("space-legacy-learning"), "title": .string("学习"),
+            "symbol": .string("book"), "color": .string("teal"),
+            "allows_lessons": .integer(1), "legacy_entity": .string("learning"),
+            "position": .integer(pos), "status": .string("active"),
+            "created_at": now, "updated_at": now,
+          ])
       }
       try require(try db.rows("PRAGMA foreign_key_check").isEmpty, "备份关联缺少记录")
       return count

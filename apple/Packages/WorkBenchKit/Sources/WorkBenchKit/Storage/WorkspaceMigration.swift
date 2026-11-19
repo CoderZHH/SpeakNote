@@ -3,16 +3,16 @@ import Foundation
 enum WorkspaceMigration {
   static func run(_ db: SQLite) throws {
     let version = try db.one("PRAGMA user_version").values.first?.int ?? 0
-    try require(version <= 21, "数据库由更新版本创建，请先更新 WorkBench")
+    try require(version <= 22, "数据库由更新版本创建，请先更新 WorkBench")
     let tables = try Set(
       db.rows("SELECT name FROM sqlite_master WHERE type='table'").map { $0.text("name") })
     try require(tables.isEmpty || tables.contains("tasks"), "选择的文件不是 WorkBench 数据库")
-    if !tables.isEmpty && version < 21 {
+    if !tables.isEmpty && version < 22 {
       let directory = db.url.deletingLastPathComponent().appendingPathComponent(
         "schema-backups", isDirectory: true)
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       let backup = directory.appendingPathComponent(
-        "before-v21-" + UUID().uuidString.lowercased() + ".sqlite")
+        "before-v22-" + UUID().uuidString.lowercased() + ".sqlite")
       try db.backup(to: backup)
     }
     try db.script("PRAGMA foreign_keys=OFF")
@@ -27,8 +27,11 @@ enum WorkspaceMigration {
         ),
         ("tasks", "reminder_at", "TEXT"),
         ("tasks", "course_id", "TEXT REFERENCES courses(id) ON DELETE SET NULL"),
+        ("tasks", "collection_id", "TEXT REFERENCES collections(id) ON DELETE SET NULL"),
         ("notes", "course_id", "TEXT REFERENCES courses(id) ON DELETE SET NULL"),
+        ("notes", "collection_id", "TEXT REFERENCES collections(id) ON DELETE SET NULL"),
         ("attachments", "course_id", "TEXT REFERENCES courses(id) ON DELETE CASCADE"),
+        ("attachments", "collection_id", "TEXT REFERENCES collections(id) ON DELETE CASCADE"),
         ("reflections", "tags", "TEXT NOT NULL DEFAULT '[]'"),
         ("notes", "remark", "TEXT NOT NULL DEFAULT ''"),
         (
@@ -36,6 +39,7 @@ enum WorkspaceMigration {
           "INTEGER CHECK(untracked_seconds IS NULL OR (typeof(untracked_seconds)='integer' AND untracked_seconds>=0))"
         ),
         ("projects", "repo_path", "TEXT"), ("projects", "completed_at", "TEXT"),
+        ("projects", "position", "INTEGER NOT NULL DEFAULT 0"),
         ("accounts", "tags", "TEXT NOT NULL DEFAULT '[]'"),
         ("notes", "project_id", "TEXT REFERENCES projects(id) ON DELETE SET NULL"),
         ("notes", "learning_id", "TEXT REFERENCES learning(id) ON DELETE SET NULL"),
@@ -46,6 +50,7 @@ enum WorkspaceMigration {
           "TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','paused','done'))"
         ), ("learning", "completed_at", "TEXT"),
         ("lessons", "parent_id", "TEXT REFERENCES lessons(id) ON DELETE CASCADE"),
+        ("lessons", "collection_id", "TEXT REFERENCES collections(id) ON DELETE CASCADE"),
         ("tasks", "start_time", "TEXT"), ("tasks", "end_time", "TEXT"),
         ("tasks", "abandoned_at", "TEXT"),
         (
@@ -74,8 +79,23 @@ enum WorkspaceMigration {
       try rebuild(
         db, "attachments", pattern: "CHECK\\s*\\(\\s*\\(task_id IS NOT NULL\\)[^;]*?=1\\)",
         replacement:
-          "CHECK((task_id IS NOT NULL)+(note_id IS NOT NULL)+(project_id IS NOT NULL)+(learning_id IS NOT NULL)+(course_id IS NOT NULL)=1)"
+          "CHECK((task_id IS NOT NULL)+(note_id IS NOT NULL)+(project_id IS NOT NULL)+(learning_id IS NOT NULL)+(course_id IS NOT NULL)+(collection_id IS NOT NULL)=1)"
       )
+      try rebuild(
+        db, "lessons",
+        pattern: "(learning_id\\s+TEXT)\\s+NOT\\s+NULL",
+        replacement: "$1"
+      )
+      let lessonsSQL = try db.one(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='lessons'"
+      ).text("sql")
+      if !lessonsSQL.localizedCaseInsensitiveContains("collection_id IS NOT NULL") {
+        try rebuild(
+          db, "lessons",
+          pattern: "\\)\\s*$",
+          replacement: ", CHECK((learning_id IS NOT NULL)+(collection_id IS NOT NULL)=1))"
+        )
+      }
       if version < 7 {
         for lesson in try db.rows("SELECT * FROM lessons WHERE task_id IS NULL") {
           let key = JSONValue.id()
@@ -116,8 +136,38 @@ enum WorkspaceMigration {
           "UPDATE focus_sessions SET untracked_seconds=MAX(0,elapsed_seconds-COALESCE((SELECT SUM(MAX(0,CAST((julianday(ended_at)-julianday(started_at))*86400 AS INTEGER))) FROM focus_intervals WHERE focus_id=focus_sessions.id AND ended_at IS NOT NULL),0)) WHERE untracked_seconds IS NULL"
         )
       }
+      if !tables.isEmpty && version < 22 {
+        let now = JSONValue.string(Clock.stamp())
+        if try db.one("SELECT count(*) AS n FROM projects").integer("n") > 0,
+          try db.one("SELECT count(*) AS n FROM spaces WHERE legacy_entity='projects'").integer("n") == 0
+        {
+          try db.insert(
+            "spaces",
+            [
+              "id": .string("space-legacy-projects"), "title": .string("项目"),
+              "symbol": .string("folder"), "color": .string("blue"),
+              "allows_lessons": .integer(0), "legacy_entity": .string("projects"),
+              "position": .integer(0), "status": .string("active"),
+              "created_at": now, "updated_at": now,
+            ])
+        }
+        if try db.one("SELECT count(*) AS n FROM learning").integer("n") > 0,
+          try db.one("SELECT count(*) AS n FROM spaces WHERE legacy_entity='learning'").integer("n") == 0
+        {
+          let pos = try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM spaces").integer("n")
+          try db.insert(
+            "spaces",
+            [
+              "id": .string("space-legacy-learning"), "title": .string("学习"),
+              "symbol": .string("book"), "color": .string("teal"),
+              "allows_lessons": .integer(1), "legacy_entity": .string("learning"),
+              "position": .integer(pos), "status": .string("active"),
+              "created_at": now, "updated_at": now,
+            ])
+        }
+      }
       try require(try db.rows("PRAGMA foreign_key_check").isEmpty, "数据库关联校验失败")
-      try db.script("PRAGMA user_version=21")
+      try db.script("PRAGMA user_version=22")
     }
   }
   private static func rebuild(_ db: SQLite, _ table: String, pattern: String, replacement: String)

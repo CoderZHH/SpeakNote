@@ -1,7 +1,7 @@
 import Foundation
 
 extension WorkspaceEngine {
-  func validateCourse(_ entity: WorkspaceEntity, _ row: inout Record) throws {
+  func validateCourse(_ entity: WorkspaceEntity, _ row: inout Record, checkAssociations: Bool = true) throws {
     func list(_ value: JSONValue) throws -> [JSONValue] {
       let v = try value.isString ? JSONValue(json: value.string) : value
       guard case .array(let result) = v else { throw WorkBenchError("课表格式不正确") }
@@ -32,22 +32,31 @@ extension WorkspaceEngine {
       }
       row["periods"] = .string(try JSONValue.array(periods).json())
     case .courses:
-      _ = try exists(.semesters, row.text("semester_id"))
+      if checkAssociations {
+        _ = try exists(.semesters, row.text("semester_id"))
+      } else {
+        try require(!row.text("semester_id").isEmpty, "请指定所属学期")
+      }
       if row["color"] == nil { row["color"] = .string("#648ba8") }
       try require(
         row.text("color").range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil,
         "课程颜色不正确")
     case .courseMeetings:
-      let course = try exists(.courses, row.text("course_id"))
-      let term = try exists(.semesters, course.text("semester_id"))
       _ = try Validation.integer(row[value: "weekday"], 1...7)
       let weeks = try list(row[value: "weeks"])
       try require(!weeks.isEmpty && Set(weeks).count == weeks.count, "教学周不能为空或重复")
-      for week in weeks { _ = try Validation.integer(week, 1...term.integer("weeks")) }
       let start = try Validation.integer(row[value: "period_start"], 1...24).int
       let end = try Validation.integer(row[value: "period_end"], start...24).int
-      let periods = try list(term[value: "periods"]).map { $0["number"].int }
-      try require((start...end).allSatisfy(periods.contains), "节次不在学期作息中")
+      if checkAssociations {
+        let course = try exists(.courses, row.text("course_id"))
+        let term = try exists(.semesters, course.text("semester_id"))
+        for week in weeks { _ = try Validation.integer(week, 1...term.integer("weeks")) }
+        let periods = try list(term[value: "periods"]).map { $0["number"].int }
+        try require((start...end).allSatisfy(periods.contains), "节次不在学期作息中")
+      } else {
+        try require(!row.text("course_id").isEmpty, "请指定所属课程")
+        for week in weeks { _ = try Validation.integer(week, 1...40) }
+      }
       row["weeks"] = .string(try JSONValue.array(weeks).json())
     default: break
     }
@@ -99,18 +108,86 @@ extension WorkspaceEngine {
     _ entity: WorkspaceEntity, id: String, targetEntity: WorkspaceEntity, targetID: String,
     placement: MovePlacement, now: Date
   ) throws {
+    if entity == .spaces || entity == .projects {
+      try require(entity == targetEntity && placement != .inside && id != targetID, "移动目标不正确")
+      let moving = try exists(entity, id)
+      _ = try exists(targetEntity, targetID)
+      var rows = try db.rows("SELECT * FROM \(quote(entity.rawValue)) ORDER BY position,created_at,id")
+      rows.removeAll { $0.identifier == id }
+      guard let found = rows.firstIndex(where: { $0.identifier == targetID }) else {
+        throw WorkBenchError("插入位置已变化")
+      }
+      let index = found + (placement == .after ? 1 : 0)
+      rows.insert(moving, at: index)
+      for (pos, row) in rows.enumerated() {
+        var patch: Record = ["position": .integer(Int64(pos))]
+        if entity == .spaces { patch["updated_at"] = .string(Clock.stamp(now)) }
+        try db.update(entity.rawValue, id: row.identifier, patch)
+      }
+      return
+    }
+    if entity == .collections {
+      try require(targetEntity == .collections, "移动目标不正确")
+      let moving = try exists(.collections, id)
+      let target = try exists(.collections, targetID)
+      try require(moving.text("space_id") == target.text("space_id"), "卡片只能在所属空间内移动")
+      let rows = try db.rows(
+        "SELECT * FROM collections WHERE space_id=? ORDER BY position,created_at,id",
+        [moving[value: "space_id"]])
+      let parent: JSONValue = placement == .inside ? .string(targetID) : target[value: "parent_id"]
+      var subtree: Set<String> = [id]
+      while true {
+        let previous = subtree
+        for row in rows where subtree.contains(row.text("parent_id")) {
+          subtree.insert(row.identifier)
+        }
+        if previous == subtree { break }
+      }
+      try require(!subtree.contains(targetID) && !subtree.contains(parent.string), "不能移到自己或下级中")
+      var siblings = rows.filter { $0.identifier != id && $0[value: "parent_id"] == parent }
+      let index: Int
+      if placement == .inside {
+        index = siblings.count
+      } else {
+        guard let found = siblings.firstIndex(where: { $0.identifier == targetID }) else {
+          throw WorkBenchError("插入位置已变化")
+        }
+        index = found + (placement == .after ? 1 : 0)
+      }
+      let stamp = JSONValue.string(Clock.stamp(now))
+      try db.update("collections", id: id, ["parent_id": parent, "updated_at": stamp])
+      siblings.insert(moving, at: index)
+      for (pos, row) in siblings.enumerated() {
+        try db.update("collections", id: row.identifier, ["position": .integer(Int64(pos)), "updated_at": stamp])
+      }
+      if moving[value: "parent_id"] != parent {
+        let old = rows.filter { $0.identifier != id && $0[value: "parent_id"] == moving[value: "parent_id"] }
+        for (pos, row) in old.enumerated() {
+          try db.update("collections", id: row.identifier, ["position": .integer(Int64(pos)), "updated_at": stamp])
+        }
+      }
+      return
+    }
     try require(
-      [.learning, .lessons].contains(entity) && [.learning, .lessons].contains(targetEntity)
+      [.learning, .lessons].contains(entity)
+        && [.learning, .collections, .lessons].contains(targetEntity)
         && (entity == .lessons || targetEntity == .learning)
-        && !(entity == .lessons && targetEntity == .learning && placement != .inside), "移动目标不正确")
+        && !(entity == .lessons && [.learning, .collections].contains(targetEntity) && placement != .inside),
+      "移动目标不正确")
     let moving = try exists(entity, id)
     let target = try exists(targetEntity, targetID)
     let rows = try db.rows("SELECT * FROM \(quote(entity.rawValue)) ORDER BY position,id")
     let parent: JSONValue =
-      entity == .lessons && targetEntity == .learning
+      entity == .lessons && [.learning, .collections].contains(targetEntity)
       ? .null : placement == .inside ? .string(targetID) : target[value: "parent_id"]
-    let learning =
-      targetEntity == .learning ? JSONValue.string(targetID) : target[value: "learning_id"]
+    let learning: JSONValue =
+      targetEntity == .learning
+      ? .string(targetID)
+      : targetEntity == .collections ? .null : target[value: "learning_id"]
+    let collection: JSONValue =
+      targetEntity == .collections
+      ? .string(targetID)
+      : targetEntity == .learning ? .null : target[value: "collection_id"]
     var subtree: Set<String> = [id]
     while true {
       let previous = subtree
@@ -124,7 +201,8 @@ extension WorkspaceEngine {
       "不能移到自己或下级中")
     var siblings = rows.filter {
       $0.identifier != id && $0[value: "parent_id"] == parent
-        && (entity != .lessons || $0[value: "learning_id"] == learning)
+        && (entity != .lessons
+          || ($0[value: "learning_id"] == learning && $0[value: "collection_id"] == collection))
     }
     let index: Int
     if placement == .inside {
@@ -138,13 +216,15 @@ extension WorkspaceEngine {
     try db.update(entity.rawValue, id: id, ["parent_id": parent])
     if entity == .lessons {
       for row in rows where subtree.contains(row.identifier) {
-        try db.update("lessons", id: row.identifier, ["learning_id": learning])
+        try db.update(
+          "lessons", id: row.identifier,
+          ["learning_id": learning, "collection_id": collection])
         if !row[value: "task_id"].isNull {
           try db.execute(
-            "UPDATE tasks SET learning_id=?,updated_at=? WHERE id=? AND learning_id=?",
+            "UPDATE tasks SET learning_id=?,collection_id=?,updated_at=? WHERE id=? AND learning_id IS ? AND collection_id IS ?",
             [
-              learning, .string(Clock.stamp(now)), row[value: "task_id"],
-              moving[value: "learning_id"],
+              learning, collection, .string(Clock.stamp(now)), row[value: "task_id"],
+              moving[value: "learning_id"], moving[value: "collection_id"],
             ])
         }
       }
@@ -154,11 +234,14 @@ extension WorkspaceEngine {
       try db.update(entity.rawValue, id: row.identifier, ["position": .integer(Int64(index))])
     }
     if moving[value: "parent_id"] != parent
-      || (entity == .lessons && moving[value: "learning_id"] != learning)
+      || (entity == .lessons
+        && (moving[value: "learning_id"] != learning || moving[value: "collection_id"] != collection))
     {
       let old = rows.filter {
         $0.identifier != id && $0[value: "parent_id"] == moving[value: "parent_id"]
-          && (entity != .lessons || $0[value: "learning_id"] == moving[value: "learning_id"])
+          && (entity != .lessons
+            || ($0[value: "learning_id"] == moving[value: "learning_id"]
+              && $0[value: "collection_id"] == moving[value: "collection_id"]))
       }
       for (index, row) in old.enumerated() {
         try db.update(entity.rawValue, id: row.identifier, ["position": .integer(Int64(index))])

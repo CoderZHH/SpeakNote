@@ -32,12 +32,19 @@ struct CourseRemindersView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Picker("上课前提醒", selection: $minutes) {
-          Text("关闭").tag(0)
-          ForEach([5, 10, 15, 30], id: \.self) { Text("提前 \($0) 分钟").tag($0) }
+        Section {
+          Picker("上课前提醒", selection: $minutes) {
+            Text("关闭").tag(0)
+            ForEach([5, 10, 15, 30], id: \.self) { Text("提前 \($0) 分钟").tag($0) }
+          }
+        } footer: {
+          Text("仅对进行中的课程生效；暂停或已结课的课程不会推送提醒。")
+            .font(.caption)
         }
         if !message.isEmpty { Text(message).font(.footnote).foregroundStyle(.secondary) }
-      }.navigationTitle("课程提醒").toolbar {
+      }
+      .workspaceSheetForm(height: 240)
+      .navigationTitle("课程提醒").toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
         ToolbarItem(placement: .confirmationAction) {
           Button("完成") {

@@ -9,6 +9,7 @@ public enum MediaOwner: Sendable {
   case project(String)
   case learning(String)
   case course(String)
+  case collection(String)
   var field: String {
     switch self {
     case .task: "task_id"
@@ -16,11 +17,14 @@ public enum MediaOwner: Sendable {
     case .project: "project_id"
     case .learning: "learning_id"
     case .course: "course_id"
+    case .collection: "collection_id"
     }
   }
   var id: String {
     switch self {
-    case .task(let id), .note(let id), .project(let id), .learning(let id), .course(let id): id
+    case .task(let id), .note(let id), .project(let id), .learning(let id), .course(let id),
+      .collection(let id):
+      id
     }
   }
 }

@@ -14,8 +14,9 @@ struct ItemActionPanel: View {
     VStack(alignment: .leading, spacing: 4) {
       if isTask {
         if item.status == "todo" {
+          let dueToday = isTaskDueForToday(item, day: Clock.day())
           action("开始专注", symbol: "play", .focus)
-          action(item[.plannedDate].isNull ? "加入今日" : "移到以后", symbol: "calendar", .move)
+          action(dueToday ? "移到以后" : "加入今日", symbol: dueToday ? "calendar" : "sun.max", .move)
           action("安排时间", symbol: "clock", .schedule)
         } else {
           action("恢复到今日", symbol: "arrow.uturn.backward", .restore)

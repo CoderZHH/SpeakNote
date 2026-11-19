@@ -60,8 +60,9 @@ final class WorkspaceEngine {
   func association(_ fields: Record) throws {
     let associations: [(String, WorkspaceEntity)] = [
       ("project_id", .projects), ("learning_id", .learning), ("course_id", .courses),
+      ("collection_id", .collections),
     ]
-    try require(associations.filter { !fields[value: $0.0].isNull }.count <= 1, "只能关联一个项目、学习或课程")
+    try require(associations.filter { !fields[value: $0.0].isNull }.count <= 1, "只能关联一个空间卡片、项目、学习或课程")
     for (field, entity) in associations where !fields[value: field].isNull {
       _ = try exists(entity, fields.text(field))
     }
@@ -80,31 +81,81 @@ final class WorkspaceEngine {
           if fields["planned_date"] == nil { fields["planned_date"] = .string(Clock.day(now)) }
           if fields["status"] == .string("done") { fields["completed_at"] = stamp }
           if fields["status"] == .string("abandoned") { fields["abandoned_at"] = stamp }
+        case .spaces:
+          fields["created_at"] = stamp
+          fields["updated_at"] = stamp
+          if fields["symbol"] == nil { fields["symbol"] = .string("folder") }
+          if fields["color"] == nil { fields["color"] = .string("blue") }
+          if fields["allows_lessons"] == nil { fields["allows_lessons"] = .integer(0) }
+          if fields["status"] == .string("done") { fields["completed_at"] = stamp }
+          if fields["position"] == nil {
+            fields["position"] = .integer(
+              try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM spaces").integer("n"))
+          }
+        case .collections:
+          let space = try exists(.spaces, fields.text("space_id"))
+          if !fields[value: "parent_id"].isNull {
+            try require(
+              try exists(.collections, fields.text("parent_id")).text("space_id") == space.identifier,
+              "上级卡片必须属于同一空间")
+          }
+          fields["created_at"] = stamp
+          fields["updated_at"] = stamp
+          if fields["color"] == nil { fields["color"] = space["color"] ?? .string("blue") }
+          if fields["status"] == .string("done") { fields["completed_at"] = stamp }
+          if fields["position"] == nil {
+            fields["position"] = .integer(
+              try db.one(
+                "SELECT COALESCE(MAX(position),-1)+1 AS n FROM collections WHERE space_id=? AND parent_id IS ?",
+                [space[value: "id"], fields[value: "parent_id"]]
+              ).integer("n"))
+          }
         case .notes, .projects, .learning, .courses, .semesters, .courseMeetings, .accounts:
           fields["created_at"] = stamp
           if [.projects, .learning, .courses].contains(entity), fields["status"] == .string("done") {
             fields["completed_at"] = stamp
           }
-          if entity == .learning {
+          if entity == .learning && fields["position"] == nil {
             fields["position"] = .integer(
               try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM learning").integer("n"))
+          }
+          if entity == .projects && fields["position"] == nil {
+            fields["position"] = .integer(
+              try db.one("SELECT COALESCE(MAX(position),-1)+1 AS n FROM projects").integer("n"))
           }
         case .reflections:
           fields["created_at"] = stamp
           fields["updated_at"] = stamp
           if fields["day"] == nil { fields["day"] = .string(Clock.day(now)) }
         case .lessons:
-          let learning = try exists(.learning, fields.text("learning_id"))
-          if !fields[value: "parent_id"].isNull {
-            try require(
-              try exists(.lessons, fields.text("parent_id")).text("learning_id")
-                == learning.identifier, "阶段必须属于同一学习项")
+          let hasLearning = !fields[value: "learning_id"].isNull
+          let hasCollection = !fields[value: "collection_id"].isNull
+          try require(hasLearning != hasCollection, "步骤必须归属一个学习项或集合卡片")
+          if hasLearning {
+            let learning = try exists(.learning, fields.text("learning_id"))
+            if !fields[value: "parent_id"].isNull {
+              try require(
+                try exists(.lessons, fields.text("parent_id")).text("learning_id")
+                  == learning.identifier, "阶段必须属于同一学习项")
+            }
+            fields["position"] = .integer(
+              try db.one(
+                "SELECT COALESCE(MAX(position),-1)+1 AS n FROM lessons WHERE learning_id=? AND parent_id IS ?",
+                [learning[value: "id"], fields[value: "parent_id"]]
+              ).integer("n"))
+          } else {
+            let collection = try exists(.collections, fields.text("collection_id"))
+            if !fields[value: "parent_id"].isNull {
+              try require(
+                try exists(.lessons, fields.text("parent_id")).text("collection_id")
+                  == collection.identifier, "阶段必须属于同一集合卡片")
+            }
+            fields["position"] = .integer(
+              try db.one(
+                "SELECT COALESCE(MAX(position),-1)+1 AS n FROM lessons WHERE collection_id=? AND parent_id IS ?",
+                [collection[value: "id"], fields[value: "parent_id"]]
+              ).integer("n"))
           }
-          fields["position"] = .integer(
-            try db.one(
-              "SELECT COALESCE(MAX(position),-1)+1 AS n FROM lessons WHERE learning_id=? AND parent_id IS ?",
-              [learning[value: "id"], fields[value: "parent_id"]]
-            ).integer("n"))
         default: throw WorkBenchError("请通过对应服务创建此记录")
         }
         fields = try validate(entity, fields, creating: true)
@@ -116,12 +167,14 @@ final class WorkspaceEngine {
         if let expected { try require(old.text("updated_at") == expected, "内容已变化，请重新打开后修改") }
         if thought != nil { try require(entity == .reflections, "正文版本只适用于思考") }
         var patch = Dictionary(uniqueKeysWithValues: input.map { ($0.key.rawValue, $0.value) })
-        if [.tasks, .reflections].contains(entity) {
+        if [.tasks, .reflections, .spaces, .collections].contains(entity) {
           let previous = try? Clock.parse(old.text("updated_at"))
           patch["updated_at"] = .string(
             Clock.stamp(max(now, previous?.addingTimeInterval(0.001) ?? now)))
         }
-        if [.tasks, .projects, .learning, .courses].contains(entity), let status = patch["status"] {
+        if [.tasks, .projects, .learning, .courses, .spaces, .collections].contains(entity),
+          let status = patch["status"]
+        {
           patch["completed_at"] =
             status == .string("done")
             ? (old.text("status") == "done" && !old[value: "completed_at"].isNull
@@ -167,8 +220,8 @@ final class WorkspaceEngine {
             "UPDATE lessons SET done=? WHERE task_id=?",
             [.integer(merged.text("status") == "done" ? 1 : 0), .string(id)])
           try db.execute(
-            "UPDATE lessons SET task_id=NULL WHERE task_id=? AND learning_id IS NOT ?",
-            [.string(id), merged[value: "learning_id"]])
+            "UPDATE lessons SET task_id=NULL WHERE task_id=? AND (learning_id IS NOT ? OR collection_id IS NOT ?)",
+            [.string(id), merged[value: "learning_id"], merged[value: "collection_id"]])
         }
         if entity == .lessons, !old[value: "task_id"].isNull {
           var changes: Record = [:]
@@ -182,7 +235,13 @@ final class WorkspaceEngine {
         }
         return CommandResult(id: id, thoughtVersion: savedThought)
       case .delete(let entity, let id):
-        _ = try exists(entity, id)
+        let old = try exists(entity, id)
+        if entity == .spaces {
+          let legacy = old.text("legacy_entity")
+          if legacy == "projects" || legacy == "learning" {
+            try db.execute("DELETE FROM \(quote(legacy))")
+          }
+        }
         try db.execute("DELETE FROM \(quote(entity.rawValue)) WHERE id=?", [.string(id)])
         return CommandResult(id: id)
       case .scheduleLesson(let id, let plannedDate):
@@ -201,6 +260,7 @@ final class WorkspaceEngine {
             [
               "id": .string(taskID), "title": lesson[value: "title"],
               "learning_id": lesson[value: "learning_id"],
+              "collection_id": lesson[value: "collection_id"],
               "planned_date": try Validation.day(.string(plannedDate)), "created_at": stamp,
               "updated_at": stamp,
             ])
@@ -209,7 +269,10 @@ final class WorkspaceEngine {
         return CommandResult(id: taskID)
       case .convertNote(let id, let plannedDate):
         return try convertNote(id: id, plannedDate: plannedDate, now: now)
-      case .startFocus(let taskID): return try startFocus(taskID: taskID, now: now)
+      case .startFocus(let taskID, let goalSeconds):
+        return try startFocus(taskID: taskID, goalSeconds: goalSeconds, now: now)
+      case .updateFocusGoal(let id, let goalSeconds):
+        return try updateFocusGoal(id: id, goalSeconds: goalSeconds)
       case .pauseFocus:
         try pauseFocus(now: now)
         return CommandResult()
@@ -251,21 +314,34 @@ final class WorkspaceEngine {
     for (key, max) in [
       ("title", entity == .tasks || entity == .lessons ? 500 : 200), ("content", 20000),
       ("notes", 10000), ("remark", 10000), ("description", 10000), ("resume_hint", 2000),
-      ("name", 100), ("teacher", 200), ("code", 200), ("room", 200),
+      ("name", 100), ("teacher", 200), ("code", 200), ("room", 200), ("symbol", 60), ("color", 40),
     ] where f[key] != nil {
       f[key] = try Validation.text(
-        f[key]!, key, max: max, required: ["title", "content", "name"].contains(key))
+        f[key]!, key, max: max, required: ["title", "content", "name", "symbol"].contains(key))
     }
     let required: String? =
       switch entity {
-      case .tasks, .projects, .learning, .lessons, .courses, .semesters: "title"
+      case .tasks, .projects, .learning, .lessons, .courses, .semesters, .spaces, .collections:
+        "title"
       case .notes, .reflections: "content"
       case .accounts: "name"
       default: nil
       }
     if let required { try require(!f.text(required).isEmpty, "请填写名称或内容") }
     if checkAssociations && [.tasks, .notes].contains(entity) { try association(f) }
-    if [.tasks, .projects, .learning, .courses, .notes].contains(entity), let status = f["status"] {
+    if entity == .spaces {
+      let allows = f["allows_lessons"] ?? .integer(0)
+      f["allows_lessons"] = try Validation.integer(allows, 0...1)
+      if let legacy = f["legacy_entity"], !legacy.isNull {
+        try require(["projects", "learning"].contains(legacy.string), "空间兼容类型不正确")
+      }
+    }
+    if entity == .collections && checkAssociations {
+      _ = try exists(.spaces, f.text("space_id"))
+    }
+    if [.tasks, .projects, .learning, .courses, .notes, .spaces, .collections].contains(entity),
+      let status = f["status"]
+    {
       let allowed =
         entity == .tasks
         ? ["todo", "done", "abandoned"]
@@ -318,7 +394,9 @@ final class WorkspaceEngine {
         ["douyin", "bilibili", "xiaohongshu", "x", "tiktok", "instagram", "youtube"].contains(
           f.text("platform")), "平台不支持")
     }
-    if [.semesters, .courses, .courseMeetings].contains(entity) { try validateCourse(entity, &f) }
+    if [.semesters, .courses, .courseMeetings].contains(entity) {
+      try validateCourse(entity, &f, checkAssociations: checkAssociations)
+    }
     try require(Set(f.keys).isSubset(of: try db.columns(entity.rawValue)), "记录包含不支持的字段")
     return f
   }
@@ -353,6 +431,7 @@ final class WorkspaceEngine {
           "id": .string(taskID), "title": .string(title), "notes": .string(content),
           "source_note_id": .string(id), "project_id": note[value: "project_id"],
           "learning_id": note[value: "learning_id"], "course_id": note[value: "course_id"],
+          "collection_id": note[value: "collection_id"],
           "planned_date": try Validation.day(
             plannedDate.map(JSONValue.string) ?? .string(Clock.day(now))),
           "created_at": .string(Clock.stamp(now)), "updated_at": .string(Clock.stamp(now)),
@@ -447,7 +526,9 @@ extension WorkspaceDatabase {
     entity: WorkspaceEntity, id: String, fields: [ItemField: JSONValue],
     attachments: [StagedEntryAttachment], now: Date = .now
   ) throws {
-    try require([WorkspaceEntity.tasks, .notes, .projects, .learning].contains(entity), "不支持的创建类型")
+    try require(
+      [WorkspaceEntity.tasks, .notes, .projects, .learning, .collections].contains(entity),
+      "不支持的创建类型")
     let folder = url.deletingLastPathComponent().appendingPathComponent("attachments")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let owner: MediaOwner =
@@ -455,7 +536,9 @@ extension WorkspaceDatabase {
       ? .task(id)
       : entity == .notes
         ? .note(id)
-        : entity == .projects ? .project(id) : .learning(id)
+        : entity == .projects
+          ? .project(id)
+          : entity == .collections ? .collection(id) : .learning(id)
     var copied: [String] = []
     do {
       try engine.db.transaction {

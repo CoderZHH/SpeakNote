@@ -177,6 +177,7 @@ extension WorkspaceEngine {
       }
       var fields = merged.object
       for (field, parent) in [
+        ("space_id", "spaces"), ("collection_id", "collections"),
         ("project_id", "projects"), ("learning_id", "learning"), ("course_id", "courses"),
         ("source_note_id", "notes"), ("semester_id", "semesters"), ("focus_id", "focus_sessions"),
       ] where !fields[value: field].isNull {
@@ -184,7 +185,9 @@ extension WorkspaceEngine {
           "SELECT deleted FROM wb_sync_meta WHERE entity=? AND id=?",
           [.string(parent), fields[value: field]])
         if tomb.integer("deleted") == 1 {
-          if [.attachments, .courses, .courseMeetings, .focusIntervals].contains(entity) {
+          if [.attachments, .courses, .courseMeetings, .focusIntervals, .collections].contains(entity)
+            || (entity == .lessons && (field == "learning_id" || field == "collection_id"))
+          {
             merged = .null
             break
           }
@@ -193,8 +196,8 @@ extension WorkspaceEngine {
       }
       if !merged.isNull {
         if [
-          .tasks, .notes, .projects, .learning, .reflections, .accounts, .courses, .semesters,
-          .courseMeetings,
+          .spaces, .collections, .tasks, .notes, .projects, .learning, .reflections, .accounts,
+          .courses, .semesters, .courseMeetings,
         ].contains(entity) {
           fields = try validate(entity, fields, creating: before.isEmpty)
         }

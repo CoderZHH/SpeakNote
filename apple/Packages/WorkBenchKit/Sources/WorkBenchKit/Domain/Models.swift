@@ -2,6 +2,7 @@ import Foundation
 
 public enum AppRole: String, Sendable { case workbench, photoAssistant }
 public enum WorkspaceEntity: String, Codable, CaseIterable, Sendable {
+  case spaces, collections
   case semesters, courses
   case courseMeetings = "course_meetings"
   case projects, learning, notes, reflections, tasks, lessons, accounts, metrics
@@ -10,8 +11,12 @@ public enum WorkspaceEntity: String, Codable, CaseIterable, Sendable {
   case attachments
 }
 public enum ItemField: String, Sendable, Hashable {
-  case title, content, notes, remark, description, status, color, tags, day, teacher, code, name,
-    platform, estimate, importance, important, priority
+  case title, content, notes, remark, description, status, color, symbol, tags, day, teacher, code,
+    name, platform, estimate, importance, important, priority
+  case allowsLessons = "allows_lessons"
+  case legacyEntity = "legacy_entity"
+  case spaceID = "space_id"
+  case collectionID = "collection_id"
   case plannedDate = "planned_date"
   case dueDate = "due_date"
   case startTime = "start_time"
@@ -30,6 +35,8 @@ public enum ItemField: String, Sendable, Hashable {
   case periodStart = "period_start"
   case periodEnd = "period_end"
   case room, done
+  case resumeHint = "resume_hint"
+  case goalSeconds = "goal_seconds"
   case taskID = "task_id"
   case position
 }
@@ -55,10 +62,33 @@ public struct WorkspaceSnapshot: Sendable {
   }
   public func association(_ item: WorkspaceItem) -> WorkspaceItem? {
     for (field, entity) in [
-      (ItemField.projectID, WorkspaceEntity.projects), (.learningID, .learning),
+      (ItemField.collectionID, WorkspaceEntity.collections),
+      (.projectID, .projects), (.learningID, .learning),
       (.courseID, .courses),
     ] { if let linked = self.item(entity, item[field].string) { return linked } }
     return nil
+  }
+  public func space(for collection: WorkspaceItem) -> WorkspaceItem? {
+    switch collection.entity {
+    case .collections:
+      return item(.spaces, collection[.spaceID].string)
+    case .projects:
+      return self[.spaces].first { $0[.legacyEntity].string == "projects" }
+    case .learning:
+      return self[.spaces].first { $0[.legacyEntity].string == "learning" }
+    default:
+      return nil
+    }
+  }
+  public func collectionSymbol(_ item: WorkspaceItem) -> String {
+    if item.entity == .courses { return "graduationcap" }
+    if let parentSpace = space(for: item), !parentSpace[.symbol].string.isEmpty {
+      return parentSpace[.symbol].string
+    }
+    return item.entity == .learning ? "book" : "folder"
+  }
+  public func collectionAllowsLessons(_ item: WorkspaceItem) -> Bool {
+    false
   }
 }
 public enum MovePlacement: String, Sendable { case before, after, inside }
@@ -85,7 +115,8 @@ public enum WorkspaceCommand: Sendable {
   case delete(WorkspaceEntity, id: String)
   case convertNote(id: String, plannedDate: String?)
   case scheduleLesson(id: String, plannedDate: String)
-  case startFocus(taskID: String?)
+  case startFocus(taskID: String?, goalSeconds: Int? = nil)
+  case updateFocusGoal(id: String, goalSeconds: Int)
   case pauseFocus
   case endFocus(id: String, resumeHint: String?)
   case correctFocus(id: String, intervalID: String?, start: Date, end: Date)

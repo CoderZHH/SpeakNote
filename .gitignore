@@ -8,6 +8,7 @@ apple/Build/
 **/.build/
 **/.swiftpm/
 **/DerivedData/
+**/.dsh-build-derived/
 **/xcuserdata/
 *.xcuserstate
 test-results/

@@ -2,7 +2,7 @@ import XCTest
 
 final class WorkBenchUITests: XCTestCase {
   @MainActor func launch(courseFixtures: Bool = false) -> XCUIApplication {
-    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.ios")
+    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.speaknote.ios")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
     if courseFixtures { app.launchEnvironment["WORKBENCH_QA_COURSES"] = "1" }
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
@@ -86,7 +86,7 @@ final class WorkBenchUITests: XCTestCase {
     XCTAssertTrue(app.buttons["settings.sync"].waitForExistence(timeout: 5))
   }
   @MainActor func testAssistantSharingMovesToSettingsWithoutLosingDetailReturn() {
-    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.photo")
+    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.speaknote.photo")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
     app.launch()
@@ -111,7 +111,7 @@ final class WorkBenchUITests: XCTestCase {
     app.terminate()
   }
   @MainActor func testThoughtContinuousAutosaveAndNavigationDoneInDarkMode() async throws {
-    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.ios")
+    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.speaknote.ios")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN", "-AppleInterfaceStyle", "Dark"]
     app.launch()
@@ -152,7 +152,7 @@ final class WorkBenchUITests: XCTestCase {
     guard ProcessInfo.processInfo.environment["PHOTO_CONFLICT_FIXTURE"] == "1" else {
       throw XCTSkip("Requires the isolated photo-conflict fixture")
     }
-    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.photo")
+    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.speaknote.photo")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
     app.launch()
@@ -303,7 +303,7 @@ final class WorkBenchUITests: XCTestCase {
     app.buttons["取消"].tap()
   }
   @MainActor func testPhotoGalleryAndPinnedActionInBothClients() {
-    for bundle in ["io.github.coderzhh.workbenchpreview.ios", "io.github.coderzhh.workbenchpreview.photo"] {
+    for bundle in ["io.github.coderzhh.speaknote.ios", "io.github.coderzhh.speaknote.photo"] {
       let app = XCUIApplication(bundleIdentifier: bundle)
       app.launchEnvironment["WORKBENCH_QA"] = "1"
       app.launch()
@@ -1053,7 +1053,7 @@ final class WorkBenchUITests: XCTestCase {
     app.buttons["取消"].tap()
   }
   @MainActor func testAssistantHasNoPersonalModules() {
-    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.workbenchpreview.photo")
+    let app = XCUIApplication(bundleIdentifier: "io.github.coderzhh.speaknote.photo")
     app.launchEnvironment["WORKBENCH_QA"] = "1"
     app.launch()
     XCTAssertTrue(app.tabBars.buttons["订单"].waitForExistence(timeout: 5))

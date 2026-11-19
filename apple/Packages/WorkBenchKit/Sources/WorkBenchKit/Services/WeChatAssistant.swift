@@ -1,60 +1,6 @@
 #if os(macOS)
-import CryptoKit
 import Foundation
 import Observation
-import Security
-
-private struct AssistantKeychain {
-  let account: String
-
-  init(directory: URL) {
-    let digest = SHA256.hash(data: Data(directory.standardizedFileURL.path.utf8))
-    account = digest.map { String(format: "%02x", $0) }.joined()
-  }
-
-  private func query(_ name: String) -> [String: Any] {
-    [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: "io.github.coderzhh.workbenchpreview." + name,
-      kSecAttrAccount as String: account,
-    ]
-  }
-
-  func load<T: Decodable>(_ name: String) throws -> T? {
-    var request = query(name)
-    request[kSecReturnData as String] = true
-    var value: CFTypeRef?
-    let status = SecItemCopyMatching(request as CFDictionary, &value)
-    if status == errSecItemNotFound { return nil }
-    try check(status)
-    guard let data = value as? Data else { throw WorkBenchError("无法读取钥匙串中的微信助手配置") }
-    return try JSONDecoder().decode(T.self, from: data)
-  }
-
-  func store<T: Encodable>(_ value: T, as name: String) throws {
-    let data = try JSONEncoder().encode(value)
-    let request = query(name)
-    let status = SecItemUpdate(request as CFDictionary, [kSecValueData: data] as CFDictionary)
-    if status == errSecItemNotFound {
-      var attributes = request
-      attributes[kSecValueData as String] = data
-      try check(SecItemAdd(attributes as CFDictionary, nil))
-    } else {
-      try check(status)
-    }
-  }
-
-  func remove(_ name: String) throws {
-    let status = SecItemDelete(query(name) as CFDictionary)
-    if status != errSecItemNotFound { try check(status) }
-  }
-
-  private func check(_ status: OSStatus) throws {
-    guard status == errSecSuccess else {
-      throw WorkBenchError("无法访问 macOS 钥匙串（\(status)），请检查钥匙串是否已解锁。")
-    }
-  }
-}
 
 @MainActor @Observable final class WeChatAssistant {
   private(set) var connected = false
@@ -74,7 +20,6 @@ private struct AssistantKeychain {
   private(set) var stopping = false
 
   @ObservationIgnored private var files: AssistantFiles?
-  @ObservationIgnored private var keychain: AssistantKeychain?
   @ObservationIgnored private var binding: Task<Void, Never>?
   @ObservationIgnored private var validation: Task<Void, Never>?
   @ObservationIgnored private var poller: Task<Void, Never>?
@@ -86,19 +31,19 @@ private struct AssistantKeychain {
     issue = nil
     let local = AssistantLocal(workspaceDirectory: directory)
     let files = AssistantFiles(local: local)
-    let keychain = AssistantKeychain(directory: directory)
     self.files = files
-    self.keychain = keychain
     sendToWorkspace = { [weak session, weak store] operation, args in
       guard let session, let store else { return .object(["error": .string("工作区尚未就绪")]) }
       return await session.handleAssistant(operation, args, store: store)
     }
     do {
-      let binding: WeChatCredentials? = try keychain.load("wechat")
-      let key: String? = try keychain.load("deepseek")
+      // Stored inside the app's own 0700/0600 workspace directory (like ~/.ssh):
+      // never triggers macOS login-keychain password prompts across rebuilds/updates,
+      // and leaves zero orphaned items in macOS Keychain on uninstall.
+      let binding: WeChatCredentials? = try files.load("wechat.json")
+      let key: String? = try files.load("deepseek.json")
       connected = binding != nil
       hasKey = key != nil
-      // The assistant folder is created only after a user opts in.
       if connected {
         try local.prepare()
         paused = try files.load("paused.json") ?? false
@@ -113,7 +58,7 @@ private struct AssistantKeychain {
   }
 
   func connect() {
-    guard let files, let keychain, !busy, !connected, !stopping else { return }
+    guard let files, !busy, !connected, !stopping else { return }
     issue = nil
     qr = nil
     scanned = false
@@ -143,7 +88,7 @@ private struct AssistantKeychain {
         try Task.checkCancellation()
         try await files.exclusively {
           try files.resetConversation()
-          try keychain.store(credentials, as: "wechat")
+          try files.save(credentials, to: "wechat.json", excludeFromBackup: true)
         }
         self.paused = false
         self.connected = true
@@ -169,7 +114,7 @@ private struct AssistantKeychain {
   }
 
   func saveKey(_ input: String) {
-    guard let keychain, !verifying else { return }
+    guard let files, !verifying else { return }
     let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
     issue = nil
     guard key.hasPrefix("sk-"), (13...199).contains(key.count),
@@ -184,7 +129,7 @@ private struct AssistantKeychain {
         try Task.checkCancellation()
         await self.stop()
         try Task.checkCancellation()
-        try keychain.store(key, as: "deepseek")
+        try files.save(key, to: "deepseek.json", excludeFromBackup: true)
         self.hasKey = true
         if !self.paused { self.start() }
       } catch {
@@ -196,10 +141,10 @@ private struct AssistantKeychain {
   }
 
   func clearKey() async {
-    guard let keychain, !verifying, !stopping else { return }
+    guard let files, !verifying, !stopping else { return }
     await stop()
     do {
-      try keychain.remove("deepseek")
+      try files.remove("deepseek.json")
       hasKey = false
       taskID = nil
       issue = nil
@@ -221,11 +166,11 @@ private struct AssistantKeychain {
   }
 
   func disconnect() async {
-    guard let files, let keychain, !busy, !stopping, !verifying else { return }
+    guard let files, !busy, !stopping, !verifying else { return }
     await stop()
     do {
       try await files.exclusively {
-        try keychain.remove("wechat")
+        try files.remove("wechat.json")
         connected = false
         try files.resetConversation()
       }
@@ -239,11 +184,11 @@ private struct AssistantKeychain {
   }
 
   func start() {
-    guard let files, let keychain, let sendToWorkspace, connected, hasKey,
+    guard let files, let sendToWorkspace, connected, hasKey,
       poller == nil, !stopping, !paused else { return }
     do {
-      guard let credentials: WeChatCredentials = try keychain.load("wechat"),
-        let key: String = try keychain.load("deepseek")
+      guard let credentials: WeChatCredentials = try files.load("wechat.json"),
+        let key: String = try files.load("deepseek.json")
       else { throw WorkBenchError("请重新配置微信和 DeepSeek。") }
       issue = nil
       online = false
