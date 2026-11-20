@@ -52,7 +52,7 @@ targets:
         CFBundleDisplayName: SpeakNote
         CFBundleDevelopmentRegion: en
         LSApplicationCategoryType: public.app-category.productivity
-        SUFeedURL: https://github.com/CoderZHH/SpeakNote-Releases/releases/latest/download/appcast.xml
+        SUFeedURL: https://github.com/CoderZHH/SpeakNote/releases/latest/download/appcast.xml
         SUPublicEDKey: 'yPsdQMCZPiEudiGTcTaYsa+ZjRBa/0UAGXGS1H2Ncyo='
         SUEnableAutomaticChecks: false
     dependencies:

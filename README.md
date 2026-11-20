@@ -3,7 +3,7 @@
   <h1>SpeakNote · 随口记</h1>
   <p><strong>在微信记待办，在 Mac 上接着做。</strong></p>
   <p>连接微信助手后，可以把待办和课表发到 Mac，和项目、日历一起管理。</p>
-  <p><a href="https://github.com/CoderZHH/SpeakNote-Releases#readme"><strong>下载 Mac 版</strong></a> · <a href="https://github.com/CoderZHH/SpeakNote-Releases/releases">版本记录</a> · <a href="#从源码运行">从源码运行</a></p>
+  <p><a href="https://github.com/CoderZHH/SpeakNote/releases/latest"><strong>下载 Mac 版</strong></a> · <a href="https://github.com/CoderZHH/SpeakNote/releases">版本记录</a> · <a href="#从源码运行">从源码运行</a></p>
   <p><sub>macOS 26+ · Apple Silicon / Intel · Apple 已公证 · MIT</sub></p>
 </div>
 
@@ -26,7 +26,7 @@
 
 ## 安装并连接微信
 
-1. 下载并解压 [Mac 安装包](https://github.com/CoderZHH/SpeakNote-Releases#readme)，将 `SpeakNote.app` 拖到「应用程序」后打开。无需安装 Xcode。
+1. 下载并解压 [Mac 安装包](https://github.com/CoderZHH/SpeakNote/releases/latest)，将 `SpeakNote.app` 拖到「应用程序」后打开。无需安装 Xcode。
 2. 在首次引导中扫码绑定微信，填入并验证自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)。验证成功后会自动打开工作台，也可以点「稍后连接」先进入工作台，再从侧栏配置微信助手。
 3. 想接收微信消息时，保持随口记打开。需要暂停、重连或更换 Key 时，从侧栏进入「微信助手」。
 
@@ -34,7 +34,7 @@
 
 ## 更新
 
-打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.6 或更早版本先从[官方下载页](https://github.com/CoderZHH/SpeakNote-Releases#readme)下载并覆盖安装一次。
+打开 Mac 菜单栏的「随口记 → 检查更新…」，按提示安装新版。0.2.6 及更早版本仍读取旧更新地址。若应用内检查失败，请从[发布页](https://github.com/CoderZHH/SpeakNote/releases/latest)下载新版，退出随口记后覆盖安装。
 
 ## 数据和备份
 
