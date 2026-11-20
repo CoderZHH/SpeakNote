@@ -4,6 +4,72 @@ import Testing
 
 @testable import WorkBenchKit
 
+@Test func assistantMutationSchemaUsesEachEntitysWritableFields() throws {
+  let function = try #require(AssistantContract.tools.first {
+    $0["function"]["name"].string == AssistantContract.applyTool
+  })["function"]
+  let schemas = function["parameters"]["properties"]["changes"]["items"]["anyOf"].array
+  #expect(schemas.count == AssistantContract.Entity.allCases.count)
+  for entity in AssistantContract.Entity.allCases {
+    let matching = schemas.filter {
+      $0["properties"]["entity"]["enum"] == .array([.string(entity.rawValue)])
+    }
+    #expect(matching.count == 1)
+    let schema = try #require(matching.first)
+    #expect(Set(schema["properties"]["fields"]["properties"].object.keys) == Set(entity.writableFields.keys))
+    #expect(schema["properties"]["fields"]["additionalProperties"] == .bool(false))
+  }
+}
+
+@Test(arguments: [true, false])
+@MainActor func assistantRepairsARejectedTaskBatchWithoutPartialWrites(repair: Bool) async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let database = try WorkspaceDatabase(url: fixture.directory.appendingPathComponent("workbench.sqlite"))
+  let wrong = #"{"changes":[{"kind":"create","entity":"tasks","fields":{"title":"参加产品内测","description":"下载、注册、入群"}}]}"#
+  let corrected = #"{"changes":[{"kind":"create","entity":"tasks","fields":{"title":"参加产品内测","notes":"下载、注册、入群"}}]}"#
+  let valid = #"{"changes":[{"kind":"create","entity":"tasks","fields":{"title":"已有的批内步骤"}}]}"#
+  @Sendable func call(_ id: String, _ arguments: String) -> JSONValue {
+    .object(["id": .string(id), "function": .object([
+      "name": .string(AssistantContract.applyTool), "arguments": .string(arguments),
+    ])])
+  }
+  let agent = Agent(workspace: { operation, args in
+    guard operation == "apply" else { return .object(["result": .null]) }
+    #expect(repair)
+    #expect(args["changes"].array.count == 2)
+    #expect(args["changes"].array.last?["fields"]["description"].isNull == true)
+    return .object(["result": try await database.applyAssistantChanges(
+      args["changes"], requestID: args["request_id"].string, attachments: [])])
+  }, completion: { messages in
+    let feedback = messages.filter { $0["role"] == .string("tool") }
+    if !feedback.isEmpty {
+      #expect(feedback.map { $0["tool_call_id"].string } == ["valid", "notice"])
+      #expect(feedback.allSatisfy { $0["content"].string.contains("description") })
+      #expect(feedback.allSatisfy { $0["content"].string.contains("notes") })
+      let tasksBeforeRetry = try await database.snapshot()[.tasks]
+      #expect(tasksBeforeRetry.isEmpty)
+    }
+    let notice = repair && !feedback.isEmpty ? corrected : wrong
+    return .object([
+      "role": .string("assistant"),
+      "tool_calls": .array([call("valid", valid), call("notice", notice)]),
+    ])
+  })
+  let reply = try await agent.respond(
+    to: "把通知整理成待办，顺便记下另外一个步骤", history: [], pending: nil, requestID: "notice-fields")
+  let tasks = try await database.snapshot()[.tasks]
+  #expect(reply.failed != repair)
+  if repair {
+    #expect(tasks.count == 2)
+    #expect(tasks.first { $0[.title].string == "参加产品内测" }?[.notes].string == "下载、注册、入群")
+  } else {
+    #expect(tasks.isEmpty)
+    #expect(reply.text.contains("未保存"))
+    #expect(reply.text.contains("description"))
+  }
+}
+
 @Test func assistantCredentialsStayInsideTheirWorkspace() throws {
   let first = try Fixture()
   let second = try Fixture()

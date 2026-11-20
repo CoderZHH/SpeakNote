@@ -313,7 +313,9 @@ extension WorkspaceEngine {
         }
       }
 
-      try require(Set(fields.keys).isSubset(of: Set(entity.writableFields.keys)), "包含不可修改的字段")
+      if let error = AssistantContract.writableFieldError(in: request) {
+        throw WorkBenchError(error)
+      }
       switch action {
       case .remember:
         let content = try Validation.text(fields[value: "content"], "偏好", max: 1000, required: true)

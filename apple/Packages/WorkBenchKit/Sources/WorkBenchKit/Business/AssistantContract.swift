@@ -47,7 +47,12 @@ public enum AssistantContract {
         ]
       case .tasks:
         return associations.merging([
-          "title": string, "notes": string, "status": choice(["todo", "done", "abandoned"]),
+          "title": string,
+          "notes": .object([
+            "type": .string("string"),
+            "description": .string("任务备注。整理通知或长消息时，把关键信息、步骤和有效链接保存在这里。"),
+          ]),
+          "status": choice(["todo", "done", "abandoned"]),
           "planned_date": optionalString, "due_date": optionalString, "start_time": optionalString,
           "end_time": optionalString, "reminder_enabled": boolean,
           "reminder_at": .object([
@@ -119,9 +124,24 @@ public enum AssistantContract {
   public static let timetableTool = "preview_timetable_import"
   public static let applyTool = "apply_workbench_changes"
 
+  static func writableFieldError(in change: JSONValue) -> String? {
+    guard let entity = Entity(rawValue: change["entity"].string) else { return nil }
+    let unsupported = Set(change["fields"].object.keys)
+      .subtracting(entity.writableFields.keys).sorted()
+    guard !unsupported.isEmpty else { return nil }
+    let fields = unsupported.prefix(5).map { String($0.prefix(40)) }.joined(separator: "、")
+    return "\(entity.label)不支持这些字段：\(fields)。"
+  }
+
   public static var tools: [JSONValue] {
-    let fields = Entity.allCases.reduce(into: Record()) { result, entity in
-      result.merge(entity.writableFields) { first, next in first == next ? first : string }
+    let changeSchemas = Entity.allCases.map { entity in
+      schema([
+        "kind": choice(Action.allCases.filter { $0.allows(entity) }.map(\.rawValue)),
+        "entity": choice([entity.rawValue]), "target_id": string,
+        "expected_version": string, "ref": string, "attach_image": boolean,
+        "occurrence_id": string, "minutes_before": integer,
+        "fields": schema(entity.writableFields, required: []),
+      ], required: ["kind", "entity"])
     }
     return [
       tool(searchTool, """
@@ -168,13 +188,7 @@ public enum AssistantContract {
         作为 expected_version，并可指定 minutes_before。attach_image=true 把本条消息的图片存到该变更的唯一目标。
         """, [
         "changes": .object(["type": .string("array"), "minItems": .integer(1), "maxItems": .integer(10),
-          "items": schema([
-            "kind": choice(Action.allCases.map(\.rawValue)),
-            "entity": choice(Entity.allCases.map(\.rawValue)), "target_id": string,
-            "expected_version": string, "ref": string, "attach_image": boolean,
-            "occurrence_id": string, "minutes_before": integer,
-            "fields": schema(fields, required: []),
-          ], required: ["kind", "entity"])]),
+          "items": .object(["anyOf": .array(changeSchemas)])]),
       ], required: ["changes"]),
     ]
   }

@@ -88,7 +88,7 @@ private let reminderNow = try! Clock.parse("2026-10-28T09:00:00+08:00")
     "SELECT * FROM wb_sync_meta WHERE entity='tasks' AND id=?", [.string(id)])
   try db.db.script("ALTER TABLE tasks DROP COLUMN reminder_enabled; ALTER TABLE tasks DROP COLUMN reminder_at; PRAGMA user_version=19")
   try WorkspaceMigration.run(db.db)
-  #expect(try db.db.one("PRAGMA user_version").values.first == .integer(21))
+  #expect(try db.db.one("PRAGMA user_version").values.first == .integer(22))
   #expect(try db.snapshot().item(.tasks, id)?[.reminderEnabled] == .integer(0))
   #expect(
     try db.db.one("SELECT * FROM wb_sync_meta WHERE entity='tasks' AND id=?", [.string(id)])
